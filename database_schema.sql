@@ -64,6 +64,9 @@ CREATE POLICY "Users can view own photos" ON public.photos
 CREATE POLICY "Users can insert own photos" ON public.photos
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+CREATE POLICY "Users can update own photos" ON public.photos
+    FOR UPDATE USING (auth.uid() = user_id);
+
 -- Function to automatically create user profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$

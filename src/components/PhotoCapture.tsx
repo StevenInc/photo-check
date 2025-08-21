@@ -127,8 +127,17 @@ const PhotoCapture: React.FC = () => {
       const response = await fetch(capturedImage)
       const blob = await response.blob()
 
-      // Generate unique filename
-      const fileName = `${user.id}/${reminderId}_${Date.now()}.jpg`
+      // Generate unique filename with better structure
+      const timestamp = Date.now()
+      const fileName = `${user.id}/${reminderId}_${timestamp}.jpg`
+
+      // Log the file path components for debugging
+      console.log('🔍 File path components:')
+      console.log('  User ID:', user.id)
+      console.log('  Reminder ID:', reminderId)
+      console.log('  Timestamp:', timestamp)
+      console.log('  Full file path:', fileName)
+      console.log('  File path length:', fileName.length)
 
       // Upload to Supabase storage
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -138,12 +147,47 @@ const PhotoCapture: React.FC = () => {
           cacheControl: '3600'
         })
 
-      if (uploadError) throw uploadError
+      if (uploadError) {
+        console.error('❌ Upload error:', uploadError)
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('photos')
-        .getPublicUrl(fileName)
+        // Try with a simpler file path if the first one fails
+        if (uploadError.message && uploadError.message.includes('400')) {
+          console.log('🔄 Trying with simplified file path...')
+          const simpleFileName = `${user.id.substring(0, 8)}/${reminderId.substring(0, 8)}_${timestamp}.jpg`
+
+          const { data: retryData, error: retryError } = await supabase.storage
+            .from('photos')
+            .upload(simpleFileName, blob, {
+              contentType: 'image/jpeg',
+              cacheControl: '3600'
+            })
+
+          if (retryError) {
+            console.error('❌ Retry upload also failed:', retryError)
+            throw retryError
+          }
+
+          console.log('✅ Retry upload succeeded with simplified path:', simpleFileName)
+          // Use the retry data instead
+          const { data: retryUrlData } = supabase.storage
+            .from('photos')
+            .getPublicUrl(simpleFileName)
+
+          // Continue with the retry URL data
+          urlData = retryUrlData
+        } else {
+          throw uploadError
+        }
+      }
+
+      // Get public URL (urlData might be set by retry logic above)
+      let urlData
+      if (!urlData) {
+        const { data: urlResult } = supabase.storage
+          .from('photos')
+          .getPublicUrl(fileName)
+        urlData = urlResult
+      }
 
       // Log the URL to console for debugging
       console.log('📸 Reminder photo uploaded successfully!')
@@ -154,14 +198,15 @@ const PhotoCapture: React.FC = () => {
 
       // Complete the reminder (skip for test reminder IDs)
       if (!reminderId.startsWith('test-')) {
-        await ReminderService.completeReminder(reminderId, urlData.publicUrl)
-        // Navigate to success page for real reminders
-        navigate('/success')
+        await ReminderService.completeReminder(reminderId, urlData.publicUrl, user.id)
+        console.log('✅ Photo uploaded and reminder completed successfully!')
       } else {
-        // For test reminders, just show success message and go back to dashboard
+        // For test reminders, just show success message
         console.log('🧪 Test photo uploaded successfully! (No database update)')
-        navigate('/')
       }
+
+      // Navigate back to dashboard for all successful uploads
+      navigate('/')
     } catch (err) {
       setError('Failed to upload photo. Please try again.')
       console.error('Upload error:', err)

@@ -2,6 +2,190 @@ import { supabase } from '../lib/supabase'
 import type { Reminder, Photo } from '../lib/supabase'
 
 export class ReminderService {
+  private static notificationTimeout: NodeJS.Timeout | null = null
+  private static isRunning = false
+  private static currentUserId: string | null = null
+  private static lastNotificationTime: number = 0
+
+  // Start the notification service to run every 3 minutes
+  static startNotificationService(userId: string): void {
+    if (this.isRunning) {
+      console.log('🔔 Notification service is already running')
+      return
+    }
+
+    console.log('🔔 Starting notification service - will run every 3 minutes')
+    this.isRunning = true
+    this.currentUserId = userId
+    this.lastNotificationTime = Date.now()
+
+    // Run immediately on start
+    this.sendNotification(userId)
+
+    // Schedule next notification using recursive setTimeout (more reliable than setInterval)
+    this.scheduleNextNotification(userId)
+
+    // Log the service setup
+    console.log('✅ Notification service started with recursive scheduling')
+    console.log('🔍 Next notification in 3 minutes')
+  }
+
+  // Recursively schedule the next notification
+  private static scheduleNextNotification(userId: string): void {
+    if (!this.isRunning || !this.currentUserId) {
+      console.log('⚠️ Service stopped, not scheduling next notification')
+      return
+    }
+
+    // Clear any existing timeout
+    if (this.notificationTimeout) {
+      clearTimeout(this.notificationTimeout)
+    }
+
+    // Schedule next notification in 3 minutes
+    this.notificationTimeout = setTimeout(() => {
+      if (this.isRunning && this.currentUserId) {
+        console.log('⏰ Timeout fired, sending notification...')
+        this.sendNotification(this.currentUserId)
+        this.lastNotificationTime = Date.now()
+
+        // Schedule the next notification recursively
+        this.scheduleNextNotification(this.currentUserId)
+      } else {
+        console.log('⚠️ Timeout fired but service not running')
+      }
+    }, 3 * 60 * 1000) // 3 minutes = 180,000 milliseconds
+
+    console.log('⏰ Next notification scheduled in 3 minutes')
+  }
+
+  // Stop the notification service
+  static stopNotificationService(): void {
+    if (this.notificationTimeout) {
+      clearTimeout(this.notificationTimeout)
+      this.notificationTimeout = null
+    }
+    this.isRunning = false
+    this.currentUserId = null
+    this.lastNotificationTime = 0
+    console.log('🔔 Notification service stopped')
+  }
+
+  // Check if the notification service is running
+  static isNotificationServiceRunning(): boolean {
+    return this.isRunning
+  }
+
+  // Get the current user ID for the service
+  static getCurrentServiceUserId(): string | null {
+    return this.currentUserId
+  }
+
+    // Get time until next notification
+  static getTimeUntilNextNotification(): number | null {
+    if (!this.isRunning || this.lastNotificationTime === 0) {
+      return null
+    }
+
+    // Calculate actual time since last notification
+    const timeSinceLast = Date.now() - this.lastNotificationTime
+    const timeUntilNext = (3 * 60 * 1000) - timeSinceLast // 3 minutes minus elapsed time
+
+    return Math.max(0, timeUntilNext) // Don't return negative values
+  }
+
+      // Send a notification immediately using the same logic as testNotification
+  static async sendNotification(userId: string): Promise<void> {
+    try {
+      console.log('🔔 Sending automated notification for user:', userId)
+
+      if (Notification.permission === 'granted') {
+        // First, create a real reminder in the database
+        const now = new Date()
+        const expiresAt = new Date(now.getTime() + 5 * 60 * 1000) // 5 minutes from now
+
+        const { data: reminder, error: reminderError } = await supabase
+          .from('reminders')
+          .insert({
+            user_id: userId,
+            scheduled_at: now.toISOString(),
+            expires_at: expiresAt.toISOString(),
+            status: 'active'
+          })
+          .select()
+          .single()
+
+        if (reminderError) {
+          console.error('❌ Failed to create reminder for automated notification:', reminderError)
+          return
+        }
+
+        console.log('✅ Created reminder for automated notification:', reminder.id)
+
+        // Play notification sound using Web Audio API
+        try {
+          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+          const oscillator = audioContext.createOscillator()
+          const gainNode = audioContext.createGain()
+
+          oscillator.connect(gainNode)
+          gainNode.connect(audioContext.destination)
+
+          oscillator.frequency.setValueAtTime(800, audioContext.currentTime) // 800Hz tone
+          oscillator.type = 'sine'
+
+          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5)
+
+          oscillator.start(audioContext.currentTime)
+          oscillator.stop(audioContext.currentTime + 0.5)
+
+          console.log('🔊 Automated notification sound played successfully!')
+        } catch (e) {
+          console.log('🔊 Audio creation failed:', e)
+          // Fallback: try to play a simple beep using HTML5 audio
+          try {
+            const audio = new Audio()
+            audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHOq+8+OWT'
+            audio.volume = 0.5
+            audio.play().catch(e => console.log('🔊 Fallback audio failed:', e))
+          } catch (fallbackError) {
+            console.log('🔊 All audio methods failed:', fallbackError)
+          }
+        }
+
+        // Create the notification with the real reminder ID
+        const notification = new Notification('📸 Photo Check Reminder!', {
+          body: 'Time to take a photo! Click to start.',
+          icon: '/camera-icon.svg',
+          badge: '/camera-icon.svg',
+          tag: reminder.id, // Use the real reminder ID
+          requireInteraction: true
+        })
+
+        // Handle notification click
+        notification.onclick = () => {
+          window.focus()
+          console.log('🔔 Automated photo reminder notification clicked!')
+          // Navigate to photo capture page with real reminder ID
+          window.location.href = `/capture/${reminder.id}`
+          notification.close()
+        }
+
+        // Auto-close after 8 seconds (same as testNotification)
+        setTimeout(() => {
+          notification.close()
+        }, 8000)
+
+        console.log('✅ Automated notification sent successfully with reminder ID:', reminder.id)
+      } else {
+        console.log('⚠️ Notification permission not granted')
+      }
+    } catch (error) {
+      console.error('❌ Failed to send automated notification:', error)
+    }
+  }
+
   // Request notification permission
   static async requestNotificationPermission(): Promise<boolean> {
     if (!('Notification' in window)) {
@@ -114,7 +298,7 @@ export class ReminderService {
   }
 
   // Complete reminder when photo is uploaded
-  static async completeReminder(reminderId: string, photoUrl: string): Promise<Photo> {
+  static async completeReminder(reminderId: string, photoUrl: string, userId: string): Promise<Photo> {
     // First, complete the reminder
     const { error: reminderError } = await supabase
       .from('reminders')
@@ -127,6 +311,7 @@ export class ReminderService {
     const { data: photo, error: photoError } = await supabase
       .from('photos')
       .insert({
+        user_id: userId,           // ✅ Add the missing user_id
         reminder_id: reminderId,
         photo_url: photoUrl,
         uploaded_at: new Date().toISOString()

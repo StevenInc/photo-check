@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { ReminderService } from '../services/reminderService'
+import { StorageTest } from '../utils/storageTest'
 import type { Reminder, Photo } from '../lib/supabase'
 
 const Dashboard: React.FC = () => {
@@ -10,7 +11,9 @@ const Dashboard: React.FC = () => {
   const [activeReminders, setActiveReminders] = useState<Reminder[]>([])
   const [photoHistory, setPhotoHistory] = useState<Photo[]>([])
   const [isScheduling, setIsScheduling] = useState(false)
+  const [notificationServiceRunning, setNotificationServiceRunning] = useState(false)
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
+  const [nextNotificationTime, setNextNotificationTime] = useState<number | null>(null)
 
   useEffect(() => {
     if (!user) return
@@ -18,6 +21,23 @@ const Dashboard: React.FC = () => {
     loadDashboardData()
     checkNotificationPermission()
   }, [user])
+
+  // Timer for next notification countdown
+  useEffect(() => {
+    if (!notificationServiceRunning) {
+      setNextNotificationTime(null)
+      return
+    }
+
+    const timer = setInterval(() => {
+      const timeUntil = ReminderService.getTimeUntilNextNotification()
+      if (timeUntil) {
+        setNextNotificationTime(timeUntil)
+      }
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [notificationServiceRunning])
 
   const loadDashboardData = async () => {
     try {
@@ -74,6 +94,17 @@ const Dashboard: React.FC = () => {
     } else {
       alert('Please enable notifications first to test the notification system.')
     }
+  }
+
+  const startNotificationService = () => {
+    if (!user) return
+    ReminderService.startNotificationService(user.id)
+    setNotificationServiceRunning(true)
+  }
+
+  const stopNotificationService = () => {
+    ReminderService.stopNotificationService()
+    setNotificationServiceRunning(false)
   }
 
   const scheduleRandomReminder = async () => {
@@ -145,6 +176,36 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
+            {/* Notification Service Status */}
+      {notificationPermission === 'granted' && (
+        <div className={`border rounded-lg p-4 mb-6 ${
+          notificationServiceRunning
+            ? 'bg-green-50 border-green-200'
+            : 'bg-gray-50 border-gray-200'
+        }`}>
+          <div className="flex items-center">
+            <div className={notificationServiceRunning ? 'text-green-800' : 'text-gray-800'}>
+              <p className="font-medium">
+                {notificationServiceRunning ? '🔔 Notification Service Running' : '⏸️ Notification Service Stopped'}
+              </p>
+              <p className={`text-sm mt-1 ${
+                notificationServiceRunning ? 'text-green-700' : 'text-gray-700'
+              }`}>
+                {notificationServiceRunning
+                  ? `Next notification in ${nextNotificationTime ? Math.ceil(nextNotificationTime / 1000) : 180} seconds`
+                  : 'Click "Start Notification Service" to begin receiving automatic reminders'
+                }
+              </p>
+              {notificationServiceRunning && (
+                <p className="text-xs text-green-600 mt-1">
+                  Service will continue running in the background
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick Actions */}
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
@@ -164,6 +225,34 @@ const Dashboard: React.FC = () => {
                 🎲 Schedule Random Reminder
               </>
             )}
+          </button>
+
+          <button
+            onClick={startNotificationService}
+            disabled={notificationPermission !== 'granted'}
+            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            🚀 Start Notification Service (Every 3 min)
+          </button>
+
+          <button
+            onClick={stopNotificationService}
+            className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            ⏹️ Stop Notification Service
+          </button>
+
+          <button
+            onClick={() => {
+              if (user && notificationServiceRunning) {
+                console.log('🧪 Manually triggering notification...')
+                ReminderService.sendNotification(user.id)
+              }
+            }}
+            disabled={!notificationServiceRunning || !user}
+            className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            🧪 Trigger Notification Now
           </button>
 
 
