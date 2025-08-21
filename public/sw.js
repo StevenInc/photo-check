@@ -201,16 +201,27 @@ async function sendBackgroundNotification(userId) {
       badge: '/camera-icon.svg',
       tag: `background-${userId}-${Date.now()}`,
       requireInteraction: true,
-      silent: false // This should trigger system sound
+      silent: false, // This should trigger system sound
+      data: {
+        type: 'background-notification',
+        userId: userId,
+        timestamp: Date.now(),
+        action: 'capture-photo'
+      }
     };
 
     // Show the notification
-    const notification = await self.registration.showNotification(
-      '📸 Photo Check Reminder!',
-      options
-    );
-
-    console.log('✅ Service Worker: Background notification sent successfully');
+    let notification = null;
+    try {
+      notification = await self.registration.showNotification(
+        '📸 Photo Check Reminder!',
+        options
+      );
+      console.log('✅ Service Worker: Background notification sent successfully');
+    } catch (notificationError) {
+      console.error('❌ Service Worker: Failed to show notification:', notificationError);
+      notification = null;
+    }
 
     // Play notification sound using Web Audio API
     playNotificationSound();
@@ -219,17 +230,22 @@ async function sendBackgroundNotification(userId) {
     notifyMainAppOfNotificationSent(userId);
 
     // Auto-close after 8 seconds (only if notification was created successfully)
-    if (notification) {
+    if (notification && typeof notification.close === 'function') {
       setTimeout(() => {
         try {
-          notification.close();
-          console.log('✅ Service Worker: Notification auto-closed successfully');
+          // Double-check that notification still exists and has close method
+          if (notification && typeof notification.close === 'function') {
+            notification.close();
+            console.log('✅ Service Worker: Notification auto-closed successfully');
+          } else {
+            console.log('⚠️ Service Worker: Notification object invalid during auto-close, skipping');
+          }
         } catch (closeError) {
           console.log('⚠️ Service Worker: Failed to auto-close notification:', closeError);
         }
       }, 8000);
     } else {
-      console.log('⚠️ Service Worker: Notification object is undefined, skipping auto-close');
+      console.log('⚠️ Service Worker: Notification object is undefined or invalid, skipping auto-close');
     }
 
   } catch (error) {
@@ -338,13 +354,41 @@ self.addEventListener('push', (event) => {
 
 // Notification click event
 self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
+  // Safely close the notification
+  try {
+    if (event.notification && typeof event.notification.close === 'function') {
+      event.notification.close();
+      console.log('✅ Service Worker: Notification closed successfully');
+    } else {
+      console.log('⚠️ Service Worker: Notification object invalid, skipping close');
+    }
+  } catch (closeError) {
+    console.log('⚠️ Service Worker: Failed to close notification:', closeError);
+  }
 
   console.log('🔔 Service Worker: Notification clicked!', event.notification.tag);
+  console.log('🔔 Service Worker: Notification data:', event.notification.data);
 
-  // Get reminder ID from notification tag if available
-  const reminderId = event.notification.tag;
-  const notificationUrl = reminderId && !reminderId.startsWith('background-') ? `/capture/${reminderId}` : '/';
+  // Determine navigation URL based on notification type and data
+  let notificationUrl = '/';
+
+  if (event.notification.data && event.notification.data.type === 'background-notification') {
+    // Background notification - navigate to generic capture page without specific reminder ID
+    notificationUrl = '/capture';
+    console.log('🔔 Service Worker: Background notification clicked, navigating to generic capture page');
+  } else if (event.notification.tag && event.notification.tag.startsWith('test-')) {
+    // Test notification - navigate to test capture page
+    notificationUrl = '/capture/test-reminder-id';
+    console.log('🔔 Service Worker: Test notification clicked, navigating to test capture page');
+  } else if (event.notification.tag && !event.notification.tag.startsWith('background-')) {
+    // Regular reminder notification - navigate to specific capture page
+    notificationUrl = `/capture/${event.notification.tag}`;
+    console.log('🔔 Service Worker: Regular reminder clicked, navigating to:', notificationUrl);
+  } else {
+    // Default to generic capture page for any other notification
+    notificationUrl = '/capture';
+    console.log('🔔 Service Worker: Default notification clicked, navigating to generic capture page');
+  }
 
   console.log('🔔 Service Worker: Navigating to:', notificationUrl);
 

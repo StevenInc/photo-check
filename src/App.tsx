@@ -86,6 +86,11 @@ const AppContent: React.FC = () => {
             <PhotoCapture />
           </ProtectedRoute>
         } />
+        <Route path="/capture" element={
+          <ProtectedRoute>
+            <PhotoCapture />
+          </ProtectedRoute>
+        } />
         <Route path="/test-photo" element={
           <ProtectedRoute>
             <TestPhotoCapture />

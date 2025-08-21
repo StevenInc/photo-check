@@ -20,14 +20,20 @@ const PhotoCapture: React.FC = () => {
   const [captureCountdown, setCaptureCountdown] = useState(0) // 3-second countdown
 
   useEffect(() => {
-    if (!reminderId || !user) {
+    if (!user) {
       navigate('/')
       return
     }
 
-    // Activate the reminder (skip for test reminder IDs)
-    if (!reminderId.startsWith('test-')) {
-      ReminderService.activateReminder(reminderId)
+    // Handle different reminder ID scenarios
+    if (reminderId) {
+      // Activate the reminder (skip for test reminder IDs)
+      if (!reminderId.startsWith('test-')) {
+        ReminderService.activateReminder(reminderId)
+      }
+    } else {
+      // No reminder ID provided (background notification) - set a default time
+      console.log('📸 No reminder ID provided, using default capture mode for background notification');
     }
 
     // Start countdown timer
@@ -100,6 +106,7 @@ const PhotoCapture: React.FC = () => {
 
           // Convert to data URL
           const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8)
+          console.log('📸 Photo captured! Image data URL length:', imageDataUrl.length)
           setCapturedImage(imageDataUrl)
           setIsCapturing(false)
           setCaptureCountdown(0)
@@ -117,7 +124,14 @@ const PhotoCapture: React.FC = () => {
   }
 
   const uploadPhoto = async () => {
-    if (!capturedImage || !reminderId || !user) return
+    console.log('🚀 Upload function called!')
+    console.log('📸 Captured image exists:', !!capturedImage)
+    console.log('👤 User exists:', !!user)
+
+    if (!capturedImage || !user) {
+      console.log('❌ Early return - missing capturedImage or user')
+      return
+    }
 
     setIsUploading(true)
     setError(null)
@@ -129,12 +143,14 @@ const PhotoCapture: React.FC = () => {
 
       // Generate unique filename with better structure
       const timestamp = Date.now()
-      const fileName = `${user.id}/${reminderId}_${timestamp}.jpg`
+      const fileName = reminderId
+        ? `${user.id}/${reminderId}_${timestamp}.jpg`
+        : `${user.id}/background_${timestamp}.jpg`
 
       // Log the file path components for debugging
       console.log('🔍 File path components:')
       console.log('  User ID:', user.id)
-      console.log('  Reminder ID:', reminderId)
+      console.log('  Reminder ID:', reminderId || 'background-notification')
       console.log('  Timestamp:', timestamp)
       console.log('  Full file path:', fileName)
       console.log('  File path length:', fileName.length)
@@ -153,7 +169,9 @@ const PhotoCapture: React.FC = () => {
         // Try with a simpler file path if the first one fails
         if (uploadError.message && uploadError.message.includes('400')) {
           console.log('🔄 Trying with simplified file path...')
-          const simpleFileName = `${user.id.substring(0, 8)}/${reminderId.substring(0, 8)}_${timestamp}.jpg`
+          const simpleFileName = reminderId
+            ? `${user.id.substring(0, 8)}/${reminderId.substring(0, 8)}_${timestamp}.jpg`
+            : `${user.id.substring(0, 8)}/bg_${timestamp}.jpg`
 
           const { data: retryData, error: retryError } = await supabase.storage
             .from('photos')
@@ -196,13 +214,16 @@ const PhotoCapture: React.FC = () => {
       console.log('📊 Storage data:', uploadData)
       console.log('⏰ Reminder ID:', reminderId)
 
-      // Complete the reminder (skip for test reminder IDs)
-      if (!reminderId.startsWith('test-')) {
+      // Complete the reminder (skip for test reminder IDs and background notifications)
+      if (reminderId && !reminderId.startsWith('test-')) {
         await ReminderService.completeReminder(reminderId, urlData.publicUrl, user.id)
         console.log('✅ Photo uploaded and reminder completed successfully!')
-      } else {
+      } else if (reminderId && reminderId.startsWith('test-')) {
         // For test reminders, just show success message
         console.log('🧪 Test photo uploaded successfully! (No database update)')
+      } else {
+        // For background notifications (no reminder ID), just show success message
+        console.log('🔔 Background notification photo uploaded successfully! (No database update)')
       }
 
       // Navigate back to dashboard for all successful uploads
@@ -228,7 +249,7 @@ const PhotoCapture: React.FC = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  if (!reminderId || !user) {
+  if (!user) {
     return <div>Loading...</div>
   }
 
@@ -236,11 +257,15 @@ const PhotoCapture: React.FC = () => {
     <div className="min-h-screen bg-gray-900 text-white p-4">
       {/* Header with timer */}
       <div className="text-center mb-6">
-        <h1 className="text-2xl font-bold mb-2">📸 Take Your Photo!</h1>
+        <h1 className="text-2xl font-bold mb-2">
+          {reminderId ? '📸 Take Your Photo!' : '📸 Quick Photo Capture!'}
+        </h1>
         <div className="text-4xl font-mono font-bold text-red-500">
           {formatTime(timeLeft)}
         </div>
-        <p className="text-gray-400">Time remaining to capture and upload</p>
+        <p className="text-gray-400">
+          {reminderId ? 'Time remaining to capture and upload' : 'Quick photo capture mode'}
+        </p>
       </div>
 
       {/* Camera view */}
@@ -309,7 +334,10 @@ const PhotoCapture: React.FC = () => {
         ) : (
           <>
             <button
-              onClick={uploadPhoto}
+              onClick={() => {
+                console.log('🔘 Upload button clicked!')
+                uploadPhoto()
+              }}
               disabled={isUploading}
               className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
             >
