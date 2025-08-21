@@ -5,6 +5,7 @@ import Auth from './components/Auth'
 import Dashboard from './components/Dashboard'
 import PhotoCapture from './components/PhotoCapture'
 import TestPhotoCapture from './components/TestPhotoCapture'
+import NotificationResponse from './components/NotificationResponse'
 import './index.css'
 
 // Protected route component
@@ -75,6 +76,11 @@ const AppContent: React.FC = () => {
     <Router>
       <Routes>
         <Route path="/auth" element={user ? <Navigate to="/" replace /> : <Auth />} />
+        <Route path="/notification/:reminderId" element={
+          <ProtectedRoute>
+            <NotificationResponse />
+          </ProtectedRoute>
+        } />
         <Route path="/capture/:reminderId" element={
           <ProtectedRoute>
             <PhotoCapture />

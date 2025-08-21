@@ -68,24 +68,21 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  if (event.action === 'take-photo') {
-    // Navigate to photo capture page
-    event.waitUntil(
-      clients.openWindow('/capture')
-    );
-  } else {
-    // Default action - focus existing window or open new one
-    event.waitUntil(
-      clients.matchAll({ type: 'window' }).then((clientList) => {
-        for (const client of clientList) {
-          if (client.url.includes('/') && 'focus' in client) {
-            return client.focus();
-          }
+  // Get reminder ID from notification tag if available
+  const reminderId = event.notification.tag;
+  const notificationUrl = reminderId ? `/notification/${reminderId}` : '/';
+
+  // Navigate to notification response page or dashboard
+  event.waitUntil(
+    clients.matchAll({ type: 'window' }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes('/') && 'focus' in client) {
+          return client.navigate(notificationUrl);
         }
-        if (clients.openWindow) {
-          return clients.openWindow('/');
-        }
-      })
-    );
-  }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(notificationUrl);
+      }
+    })
+  );
 });

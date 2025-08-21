@@ -148,7 +148,7 @@ const Dashboard: React.FC = () => {
       {/* Quick Actions */}
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <button
             onClick={scheduleRandomReminder}
             disabled={isScheduling || notificationPermission !== 'granted'}
@@ -194,6 +194,13 @@ const Dashboard: React.FC = () => {
             className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
             🧪 Test Service Notification (10s + Sound)
+          </button>
+
+          <button
+            onClick={() => navigate('/notification/test-reminder-id')}
+            className="bg-pink-600 hover:bg-pink-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            📱 Test Notification Response
           </button>
         </div>
       </div>

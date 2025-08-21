@@ -14,6 +14,7 @@ const TestPhotoCapture: React.FC = () => {
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [captureCountdown, setCaptureCountdown] = useState(0) // 3-second countdown
 
   React.useEffect(() => {
     if (!user) {
@@ -55,23 +56,38 @@ const TestPhotoCapture: React.FC = () => {
   const capturePhoto = () => {
     if (!videoRef.current || !canvasRef.current) return
 
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    const context = canvas.getContext('2d')
+    // Start 3-second countdown
+    setCaptureCountdown(3)
+    setIsCapturing(true)
 
-    if (!context) return
+    const countdownInterval = setInterval(() => {
+      setCaptureCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval)
 
-    // Set canvas dimensions to match video
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+          // Actually capture the photo
+          const video = videoRef.current!
+          const canvas = canvasRef.current!
+          const context = canvas.getContext('2d')!
 
-    // Draw video frame to canvas
-    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+          // Set canvas dimensions to match video
+          canvas.width = video.videoWidth
+          canvas.height = video.videoHeight
 
-    // Convert to data URL
-    const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8)
-    setCapturedImage(imageDataUrl)
-    setIsCapturing(false)
+          // Draw video frame to canvas
+          context.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+          // Convert to data URL
+          const imageDataUrl = canvas.toDataURL('image/jpeg', 0.8)
+          setCapturedImage(imageDataUrl)
+          setIsCapturing(false)
+          setCaptureCountdown(0)
+
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
   }
 
   const retakePhoto = () => {
@@ -173,15 +189,31 @@ const TestPhotoCapture: React.FC = () => {
             className="w-full h-auto max-h-96 object-contain"
             style={{ aspectRatio: 'auto' }}
           />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="border-4 border-white border-dashed rounded-lg p-8 opacity-50">
+
+          {/* Countdown overlay */}
+          {captureCountdown > 0 && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70">
               <div className="text-center">
-                <div className="text-6xl mb-2">📷</div>
-                <div className="text-lg">Position your camera</div>
-                <div className="text-sm text-gray-300 mt-2">This is a test - no time limit!</div>
+                <div className="text-9xl font-bold text-white mb-4 animate-pulse">
+                  {captureCountdown}
+                </div>
+                <div className="text-2xl text-white">Get ready!</div>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Camera guide overlay */}
+          {captureCountdown === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="border-4 border-white border-dashed rounded-lg p-8 opacity-50">
+                <div className="text-center">
+                  <div className="text-6xl mb-2">📷</div>
+                  <div className="text-lg">Position your camera</div>
+                  <div className="text-sm text-gray-300 mt-2">This is a test - no time limit!</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -208,7 +240,7 @@ const TestPhotoCapture: React.FC = () => {
             disabled={isCapturing}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
-            {isCapturing ? 'Capturing...' : '📸 Capture Photo'}
+            {captureCountdown > 0 ? `⏰ ${captureCountdown}...` : '📸 Capture Photo'}
           </button>
         ) : (
           <>

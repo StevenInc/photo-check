@@ -80,8 +80,8 @@ export class ReminderService {
       // Handle notification click
       notification.onclick = () => {
         window.focus()
-        // Navigate to photo capture page
-        window.location.href = `/capture/${reminder.id}`
+        // Navigate to notification response page first
+        window.location.href = `/notification/${reminder.id}`
         notification.close()
       }
 
