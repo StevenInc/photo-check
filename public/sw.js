@@ -53,13 +53,9 @@ self.addEventListener('push', (event) => {
       icon: '/diaper-icon.png',
       badge: '/diaper-icon.png',
       tag: data.tag || 'photo-reminder',
-      requireInteraction: true,
-      actions: [
-        {
-          action: 'take-photo',
-          title: 'Take Photo'
-        }
-      ]
+      requireInteraction: true
+      // Note: Actions are supported in Service Worker notifications
+      // But we'll keep it simple for now
     };
 
     event.waitUntil(

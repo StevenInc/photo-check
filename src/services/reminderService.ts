@@ -70,17 +70,11 @@ export class ReminderService {
   private static showNotification(reminder: Reminder): void {
     if (Notification.permission === 'granted') {
       const notification = new Notification('📸 Photo Time!', {
-        body: 'You have 5 minutes to take and upload a photo!',
+        body: 'You have 5 minutes to take and upload a photo! Click to start.',
         icon: '/camera-icon.png',
         badge: '/camera-icon.png',
         tag: reminder.id,
-        requireInteraction: true,
-        actions: [
-          {
-            action: 'take-photo',
-            title: 'Take Photo'
-          }
-        ]
+        requireInteraction: true
       })
 
       // Handle notification click
@@ -88,14 +82,7 @@ export class ReminderService {
         window.focus()
         // Navigate to photo capture page
         window.location.href = `/capture/${reminder.id}`
-      }
-
-      // Handle action clicks
-      notification.onactionclick = (event) => {
-        if (event.action === 'take-photo') {
-          window.focus()
-          window.location.href = `/capture/${reminder.id}`
-        }
+        notification.close()
       }
 
       // Auto-close after 5 minutes
@@ -181,5 +168,84 @@ export class ReminderService {
 
     if (error) throw error
     return data || []
+  }
+
+  // Test notification method with delay and sound
+  static testNotification(): void {
+    if (Notification.permission === 'granted') {
+      console.log('🔔 Test notification scheduled! Will appear in 10 seconds...')
+
+      // Show countdown in console
+      let countdown = 10
+      const countdownInterval = setInterval(() => {
+        countdown--
+        if (countdown > 0) {
+          console.log(`⏰ Notification in ${countdown} seconds...`)
+        }
+      }, 1000)
+
+      // Wait 10 seconds, then show notification and play sound
+      setTimeout(() => {
+        clearInterval(countdownInterval)
+
+        // Play notification sound using Web Audio API
+        try {
+          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+          const oscillator = audioContext.createOscillator()
+          const gainNode = audioContext.createGain()
+
+          oscillator.connect(gainNode)
+          gainNode.connect(audioContext.destination)
+
+          oscillator.frequency.setValueAtTime(800, audioContext.currentTime) // 800Hz tone
+          oscillator.type = 'sine'
+
+          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5)
+
+          oscillator.start(audioContext.currentTime)
+          oscillator.stop(audioContext.currentTime + 0.5)
+
+          console.log('🔊 Notification sound played successfully!')
+        } catch (e) {
+          console.log('🔊 Audio creation failed:', e)
+          // Fallback: try to play a simple beep using HTML5 audio
+          try {
+            const audio = new Audio()
+            audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT'
+            audio.volume = 0.5
+            audio.play().catch(e => console.log('🔊 Fallback audio failed:', e))
+          } catch (fallbackError) {
+            console.log('🔊 All audio methods failed:', fallbackError)
+          }
+        }
+
+        // Create the notification
+        const notification = new Notification('🧪 ReminderService Test', {
+          body: 'This notification was sent from the ReminderService class after a 10-second delay! All notification systems are working correctly!',
+          icon: '/camera-icon.svg',
+          badge: '/camera-icon.svg',
+          tag: 'reminder-service-test',
+          requireInteraction: true
+        })
+
+        // Handle notification click
+        notification.onclick = () => {
+          window.focus()
+          console.log('🔔 ReminderService test notification clicked!')
+          notification.close()
+        }
+
+        // Auto-close after 8 seconds
+        setTimeout(() => {
+          notification.close()
+        }, 8000)
+
+        console.log('🔔 ReminderService test notification sent successfully!')
+      }, 10000)
+
+    } else {
+      console.warn('🔔 Cannot send test notification: notifications not permitted')
+    }
   }
 }

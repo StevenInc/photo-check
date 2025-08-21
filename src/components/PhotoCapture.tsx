@@ -127,6 +127,13 @@ const PhotoCapture: React.FC = () => {
         .from('photos')
         .getPublicUrl(fileName)
 
+      // Log the URL to console for debugging
+      console.log('📸 Reminder photo uploaded successfully!')
+      console.log('📁 File path:', fileName)
+      console.log('🔗 Public URL:', urlData.publicUrl)
+      console.log('📊 Storage data:', uploadData)
+      console.log('⏰ Reminder ID:', reminderId)
+
       // Complete the reminder
       await ReminderService.completeReminder(reminderId, urlData.publicUrl)
 
@@ -176,7 +183,8 @@ const PhotoCapture: React.FC = () => {
             autoPlay
             playsInline
             muted
-            className="w-full h-96 object-cover"
+            className="w-full h-auto max-h-96 object-contain"
+            style={{ aspectRatio: 'auto' }}
           />
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="border-4 border-white border-dashed rounded-lg p-8 opacity-50">
@@ -195,7 +203,8 @@ const PhotoCapture: React.FC = () => {
           <img
             src={capturedImage}
             alt="Captured photo"
-            className="w-full h-96 object-cover rounded-lg"
+            className="w-full h-auto max-h-96 object-contain rounded-lg"
+            style={{ aspectRatio: 'auto' }}
           />
         </div>
       )}

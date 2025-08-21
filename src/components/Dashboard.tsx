@@ -46,6 +46,36 @@ const Dashboard: React.FC = () => {
     }
   }
 
+  const testNotification = () => {
+    if (Notification.permission === 'granted') {
+      // Create a test notification (without actions - they're only supported in Service Worker)
+      const notification = new Notification('🧪 Test Notification', {
+        body: 'This is a test notification from Photo Check! Click to test the notification system.',
+        icon: '/camera-icon.svg',
+        badge: '/camera-icon.svg',
+        tag: 'test-notification',
+        requireInteraction: true
+      })
+
+      // Handle notification click
+      notification.onclick = () => {
+        window.focus()
+        console.log('🔔 Test notification clicked!')
+        alert('Test notification clicked! Notification system is working.')
+        notification.close()
+      }
+
+      // Auto-close after 10 seconds
+      setTimeout(() => {
+        notification.close()
+      }, 10000)
+
+      console.log('🔔 Test notification sent successfully!')
+    } else {
+      alert('Please enable notifications first to test the notification system.')
+    }
+  }
+
   const scheduleRandomReminder = async () => {
     if (!user) return
 
@@ -118,7 +148,7 @@ const Dashboard: React.FC = () => {
       {/* Quick Actions */}
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <button
             onClick={scheduleRandomReminder}
             disabled={isScheduling || notificationPermission !== 'granted'}
@@ -148,6 +178,22 @@ const Dashboard: React.FC = () => {
             className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
             📸 Test Photo Capture
+          </button>
+
+          <button
+            onClick={testNotification}
+            disabled={notificationPermission !== 'granted'}
+            className="bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            🔔 Test Notification
+          </button>
+
+          <button
+            onClick={() => ReminderService.testNotification()}
+            disabled={notificationPermission !== 'granted'}
+            className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            🧪 Test Service Notification (10s + Sound)
           </button>
         </div>
       </div>
