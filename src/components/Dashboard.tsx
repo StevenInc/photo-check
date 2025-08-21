@@ -194,20 +194,20 @@ const Dashboard: React.FC = () => {
         }`}>
           <div className="flex items-center">
             <div className={notificationServiceRunning ? 'text-green-800' : 'text-gray-800'}>
-              <p className="font-medium">
+                            <p className="font-medium">
                 {notificationServiceRunning ? '🔔 Notification Service Running' : '⏸️ Notification Service Stopped'}
               </p>
               <p className={`text-sm mt-1 ${
                 notificationServiceRunning ? 'text-green-700' : 'text-gray-700'
               }`}>
                 {notificationServiceRunning
-                  ? `Next notification in ${nextNotificationTime ? Math.ceil(nextNotificationTime / 1000) : 180} seconds`
-                  : 'Click "Start Notification Service" to begin receiving automatic reminders'
+                  ? `Next notification in ${nextNotificationTime ? Math.ceil(nextNotificationTime / 1000) : 30} seconds`
+                  : 'Click "Start Notification Service" to begin receiving automatic reminders every 30 seconds'
                 }
               </p>
               {notificationServiceRunning && (
                 <p className="text-xs text-green-600 mt-1">
-                  Service will continue running in the background
+                  Service will continue running in the background every 30 seconds
                 </p>
               )}
             </div>
@@ -241,7 +241,7 @@ const Dashboard: React.FC = () => {
             disabled={notificationPermission !== 'granted'}
             className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
-            🚀 Start Notification Service (Every 3 min)
+            🚀 Start Notification Service (Every 30 sec)
           </button>
 
           <button
@@ -262,6 +262,91 @@ const Dashboard: React.FC = () => {
             className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
             🧪 Trigger Notification Now
+          </button>
+
+          <button
+            onClick={async () => {
+              try {
+                const status = await ReminderService.checkServiceWorkerStatus();
+                console.log('🔍 Service Worker Status:', status);
+                alert(`Service Worker Status:\nActive Intervals: ${status.activeIntervals}\nHeartbeat: ${status.heartbeatActive ? 'Active' : 'Inactive'}`);
+              } catch (error) {
+                console.error('Failed to check service worker status:', error);
+                alert('Failed to check service worker status');
+              }
+            }}
+            className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            🔍 Check Service Worker Status
+          </button>
+
+          <button
+            onClick={() => {
+              // Force refresh the countdown timer
+              console.log('🔄 Manually refreshing countdown timer...');
+              // This will trigger a re-render and recalculate the countdown
+              setNextNotificationTime(ReminderService.getTimeUntilNextNotification());
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            🔄 Refresh Countdown
+          </button>
+
+          <button
+            onClick={async () => {
+              try {
+                console.log('🧪 Testing service worker communication...');
+                const success = await ReminderService.testServiceWorkerCommunication();
+                if (success) {
+                  alert('✅ Service Worker communication test successful!');
+                } else {
+                  alert('❌ Service Worker communication test failed!');
+                }
+              } catch (error) {
+                console.error('Failed to test service worker communication:', error);
+                alert('Failed to test service worker communication');
+              }
+            }}
+            className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            🧪 Test Communication
+          </button>
+
+          <button
+            onClick={async () => {
+              try {
+                console.log('🧪 Testing notification sending from service worker...');
+                const success = await ReminderService.testNotificationSending();
+                if (success) {
+                  alert('✅ Service Worker notification test successful!');
+                } else {
+                  alert('❌ Service Worker notification test failed!');
+                }
+              } catch (error) {
+                console.error('Failed to test notification sending:', error);
+                alert('Failed to test notification sending');
+              }
+            }}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            🧪 Test Notification Sending
+          </button>
+
+          <button
+            onClick={() => {
+              try {
+                console.log('🔊 Testing notification sound...');
+                // Access the private method through a public interface
+                ReminderService['playFallbackNotificationSound']();
+                alert('🔊 Notification sound test triggered! Check console for details.');
+              } catch (error) {
+                console.error('Failed to test notification sound:', error);
+                alert('Failed to test notification sound');
+              }
+            }}
+            className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            🔊 Test Notification Sound
           </button>
 
 

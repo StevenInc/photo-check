@@ -7,12 +7,22 @@ export class ReminderService {
   private static lastNotificationTime: number = 0
   private static serviceWorkerRegistration: ServiceWorkerRegistration | null = null
 
-  // Initialize service worker registration
+    // Initialize service worker registration
   private static async getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
     if (!this.serviceWorkerRegistration && 'serviceWorker' in navigator) {
       try {
         this.serviceWorkerRegistration = await navigator.serviceWorker.register('/sw.js');
         console.log('✅ Service Worker registered:', this.serviceWorkerRegistration);
+
+        // Check if there's a waiting service worker and update it
+        if (this.serviceWorkerRegistration.waiting) {
+          console.log('🔄 Service Worker: Found waiting service worker, updating...');
+          this.serviceWorkerRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+
+        // Set up message listener for service worker communication
+        this.setupServiceWorkerMessageListener();
+
         return this.serviceWorkerRegistration;
       } catch (error) {
         console.error('❌ Service Worker registration failed:', error);
@@ -22,14 +32,97 @@ export class ReminderService {
     return this.serviceWorkerRegistration;
   }
 
-  // Start the notification service to run every 3 minutes using Service Worker
+        // Set up message listener for service worker
+  private static setupServiceWorkerMessageListener(): void {
+    if ('serviceWorker' in navigator) {
+      console.log('🔔 Main app: Setting up message listener for Service Worker');
+
+      // Remove any existing listeners first
+      navigator.serviceWorker.removeEventListener('message', this.handleServiceWorkerMessage);
+
+      // Add the message listener
+      navigator.serviceWorker.addEventListener('message', this.handleServiceWorkerMessage);
+
+      // Test the listener immediately
+      console.log('🧪 Testing message listener setup...');
+
+      console.log('✅ Main app: Message listener set up successfully');
+    } else {
+      console.log('⚠️ Main app: Service Worker not supported');
+    }
+  }
+
+      // Handle service worker messages
+  private static handleServiceWorkerMessage = (event: MessageEvent): void => {
+    console.log('🔔 Main app received message from Service Worker:', event.data);
+
+    if (event.data.type === 'NOTIFICATION_SENT') {
+      // Update the last notification time when service worker sends a notification
+      this.lastNotificationTime = event.data.timestamp;
+      console.log('✅ Updated lastNotificationTime to:', new Date(this.lastNotificationTime));
+      console.log('✅ New countdown should be:', this.getTimeUntilNextNotification(), 'ms');
+
+      // Play fallback notification sound in main app
+      this.playFallbackNotificationSound();
+    } else if (event.data.type === 'COMMUNICATION_TEST_RESPONSE') {
+      // Handle communication test response
+      console.log('✅ Main app: Received communication test response');
+    } else {
+      console.log('⚠️ Main app: Received unknown message type:', event.data.type);
+    }
+  }
+
+  // Play fallback notification sound in main app
+  private static playFallbackNotificationSound(): void {
+    try {
+      console.log('🔊 Main app: Playing fallback notification sound...');
+
+      // Try Web Audio API first
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // 800Hz tone
+      oscillator.type = 'sine';
+
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.5);
+
+      console.log('✅ Main app: Fallback notification sound played successfully');
+
+    } catch (error) {
+      console.log('⚠️ Main app: Web Audio API failed, trying HTML5 audio...');
+
+      // Fallback to HTML5 audio
+      try {
+        const audio = new Audio();
+        audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHOq+8+OWT';
+        audio.volume = 0.5;
+        audio.play().then(() => {
+          console.log('✅ Main app: HTML5 fallback audio played successfully');
+        }).catch(e => {
+          console.log('❌ Main app: HTML5 audio failed:', e);
+        });
+      } catch (fallbackError) {
+        console.log('❌ Main app: All audio methods failed:', fallbackError);
+      }
+    }
+  }
+
+    // Start the notification service to run every 3 minutes using Service Worker
   static async startNotificationService(userId: string): Promise<void> {
     if (this.isRunning) {
       console.log('🔔 Notification service is already running')
       return
     }
 
-    console.log('🔔 Starting notification service - will run every 3 minutes')
+    console.log('🔔 Starting notification service - will run every 30 seconds')
 
     // Get service worker registration
     const registration = await this.getServiceWorkerRegistration();
@@ -50,14 +143,14 @@ export class ReminderService {
       registration.active.postMessage({
         type: 'START_NOTIFICATION_SERVICE',
         userId: userId,
-        intervalMinutes: 3
+        intervalMinutes: 0.5 // 30 seconds (0.5 minutes)
       });
-      console.log('✅ Message sent to Service Worker to start background notifications');
+      console.log('✅ Message sent to Service Worker to start background notifications every 30 seconds');
     }
 
-    // Log the service setup
+        // Log the service setup
     console.log('✅ Notification service started using Service Worker')
-    console.log('🔍 Next notification in 3 minutes')
+    console.log('🔍 Next notification in 30 seconds')
   }
 
   // Stop the notification service
@@ -76,6 +169,8 @@ export class ReminderService {
       console.log('✅ Message sent to Service Worker to stop background notifications');
     }
 
+
+
     this.isRunning = false
     this.currentUserId = null
     this.lastNotificationTime = 0
@@ -92,17 +187,125 @@ export class ReminderService {
     return this.currentUserId
   }
 
-    // Get time until next notification
+      // Get time until next notification
   static getTimeUntilNextNotification(): number | null {
-    if (!this.isRunning || this.lastNotificationTime === 0) {
-      return null
+    // Always return a time value if we have a last notification time, regardless of isRunning
+    // This allows the countdown to work even during testing
+
+    // If no last notification time, assume next notification is in 30 seconds
+    if (this.lastNotificationTime === 0) {
+      return 30 * 1000; // 30 seconds
     }
 
     // Calculate actual time since last notification
     const timeSinceLast = Date.now() - this.lastNotificationTime
-    const timeUntilNext = (3 * 60 * 1000) - timeSinceLast // 3 minutes minus elapsed time
+    const timeUntilNext = (30 * 1000) - timeSinceLast // 30 seconds minus elapsed time
 
-    return Math.max(0, timeUntilNext) // Don't return negative values
+    // If we're past due, return 0 (notification should appear soon)
+    if (timeUntilNext <= 0) {
+      return 0;
+    }
+
+    return timeUntilNext;
+  }
+
+  // Check service worker status
+  static async checkServiceWorkerStatus(): Promise<any> {
+    const registration = await this.getServiceWorkerRegistration();
+    if (!registration?.active) {
+      return { error: 'Service Worker not active' };
+    }
+
+    return new Promise((resolve) => {
+      const messageChannel = new MessageChannel();
+      messageChannel.port1.onmessage = (event) => {
+        resolve(event.data);
+      };
+
+      registration.active.postMessage({
+        type: 'GET_SERVICE_STATUS'
+      }, [messageChannel.port2]);
+    });
+  }
+
+      // Test service worker communication
+  static async testServiceWorkerCommunication(): Promise<boolean> {
+    const registration = await this.getServiceWorkerRegistration();
+    if (!registration?.active) {
+      console.error('❌ Service Worker not active for communication test');
+      return false;
+    }
+
+    console.log('🧪 Testing service worker communication...');
+
+    return new Promise((resolve) => {
+      let resolved = false;
+
+      // Set up a one-time listener for the test response
+      const testMessageHandler = (event: MessageEvent) => {
+        if (event.data.type === 'COMMUNICATION_TEST_RESPONSE' && !resolved) {
+          resolved = true;
+          navigator.serviceWorker.removeEventListener('message', testMessageHandler);
+          console.log('✅ Service Worker communication test successful');
+          resolve(true);
+        }
+      };
+
+      navigator.serviceWorker.addEventListener('message', testMessageHandler);
+
+      // Send test message to service worker
+      registration.active.postMessage({
+        type: 'COMMUNICATION_TEST'
+      });
+
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          navigator.serviceWorker.removeEventListener('message', testMessageHandler);
+          console.error('❌ Service Worker communication test timed out');
+          resolve(false);
+        }
+      }, 5000);
+    });
+  }
+
+  // Test notification sending from service worker
+  static async testNotificationSending(): Promise<boolean> {
+    const registration = await this.getServiceWorkerRegistration();
+    if (!registration?.active) {
+      console.error('❌ Service Worker not active for notification test');
+      return false;
+    }
+
+    console.log('🧪 Testing notification sending from service worker...');
+
+    return new Promise((resolve) => {
+      // Set up a one-time listener for the notification sent message
+      const notificationMessageHandler = (event: MessageEvent) => {
+        if (event.data.type === 'NOTIFICATION_SENT') {
+          navigator.serviceWorker.removeEventListener('message', notificationMessageHandler);
+          console.log('✅ Service Worker notification test successful');
+          console.log('✅ Received NOTIFICATION_SENT message with timestamp:', event.data.timestamp);
+          resolve(true);
+        }
+      };
+
+      navigator.serviceWorker.addEventListener('message', notificationMessageHandler);
+
+      // Send message to service worker to send a notification
+      registration.active.postMessage({
+        type: 'SEND_NOTIFICATION_NOW',
+        userId: 'test-user'
+      });
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        navigator.serviceWorker.removeEventListener('message', notificationMessageHandler);
+        console.error('❌ Service Worker notification test timed out');
+        resolve(false);
+      }, 10000);
+    });
   }
 
       // Send a notification immediately using the same logic as testNotification
