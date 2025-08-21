@@ -166,27 +166,11 @@ const Dashboard: React.FC = () => {
             )}
           </button>
 
-          <button
-            onClick={() => navigate('/history')}
-            className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
-          >
-            📚 View Photo History
-          </button>
 
-          <button
-            onClick={() => navigate('/test-photo')}
-            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
-          >
-            📸 Test Photo Capture
-          </button>
 
-          <button
-            onClick={testNotification}
-            disabled={notificationPermission !== 'granted'}
-            className="bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
-          >
-            🔔 Test Notification
-          </button>
+
+
+
 
           <button
             onClick={() => ReminderService.testNotification()}
@@ -197,10 +181,10 @@ const Dashboard: React.FC = () => {
           </button>
 
           <button
-            onClick={() => navigate('/notification/test-reminder-id')}
+            onClick={() => navigate('/capture/test-reminder-id')}
             className="bg-pink-600 hover:bg-pink-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
-            📱 Test Notification Response
+            📱 Test Photo Capture
           </button>
         </div>
       </div>

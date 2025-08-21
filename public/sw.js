@@ -68,19 +68,30 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
+  console.log('🔔 Service Worker: Notification clicked!', event.notification.tag);
+
   // Get reminder ID from notification tag if available
   const reminderId = event.notification.tag;
-  const notificationUrl = reminderId ? `/notification/${reminderId}` : '/';
+  const notificationUrl = reminderId ? `/capture/${reminderId}` : '/';
 
-  // Navigate to notification response page or dashboard
+  console.log('🔔 Service Worker: Navigating to:', notificationUrl);
+
+  // Navigate directly to photo capture page or dashboard
   event.waitUntil(
     clients.matchAll({ type: 'window' }).then((clientList) => {
+      console.log('🔔 Service Worker: Found clients:', clientList.length);
+
       for (const client of clientList) {
+        console.log('🔔 Service Worker: Client URL:', client.url);
         if (client.url.includes('/') && 'focus' in client) {
+          console.log('🔔 Service Worker: Focusing and navigating client to:', notificationUrl);
+          client.focus();
           return client.navigate(notificationUrl);
         }
       }
+
       if (clients.openWindow) {
+        console.log('🔔 Service Worker: Opening new window to:', notificationUrl);
         return clients.openWindow(notificationUrl);
       }
     })

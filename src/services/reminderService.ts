@@ -77,13 +77,13 @@ export class ReminderService {
         requireInteraction: true
       })
 
-      // Handle notification click
-      notification.onclick = () => {
-        window.focus()
-        // Navigate to notification response page first
-        window.location.href = `/notification/${reminder.id}`
-        notification.close()
-      }
+              // Handle notification click
+        notification.onclick = () => {
+          window.focus()
+          // Navigate directly to photo capture page
+          window.location.href = `/capture/${reminder.id}`
+          notification.close()
+        }
 
       // Auto-close after 5 minutes
       setTimeout(() => {
@@ -225,7 +225,7 @@ export class ReminderService {
           body: 'This notification was sent from the ReminderService class after a 10-second delay! All notification systems are working correctly!',
           icon: '/camera-icon.svg',
           badge: '/camera-icon.svg',
-          tag: 'reminder-service-test',
+          tag: 'test-reminder-id',
           requireInteraction: true
         })
 
@@ -233,6 +233,8 @@ export class ReminderService {
         notification.onclick = () => {
           window.focus()
           console.log('🔔 ReminderService test notification clicked!')
+          // Navigate directly to photo capture page
+          window.location.href = '/capture/test-reminder-id'
           notification.close()
         }
 
