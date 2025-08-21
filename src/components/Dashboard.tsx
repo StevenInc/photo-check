@@ -118,11 +118,11 @@ const Dashboard: React.FC = () => {
       {/* Quick Actions */}
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <button
             onClick={scheduleRandomReminder}
             disabled={isScheduling || notificationPermission !== 'granted'}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-4 px-6 rounded-lg text-lg transition-colors flex items-center justify-center"
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors flex items-center justify-center"
           >
             {isScheduling ? (
               <>
@@ -138,9 +138,16 @@ const Dashboard: React.FC = () => {
 
           <button
             onClick={() => navigate('/history')}
-            className="bg-green-600 hover:bg-green-700 text-white font-semibold py-4 px-6 rounded-lg text-lg transition-colors"
+            className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
             📚 View Photo History
+          </button>
+
+          <button
+            onClick={() => navigate('/test-photo')}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            📸 Test Photo Capture
           </button>
         </div>
       </div>

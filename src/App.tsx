@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
 import Dashboard from './components/Dashboard'
 import PhotoCapture from './components/PhotoCapture'
+import TestPhotoCapture from './components/TestPhotoCapture'
 import './index.css'
 
 // Protected route component
@@ -77,6 +78,11 @@ const AppContent: React.FC = () => {
         <Route path="/capture/:reminderId" element={
           <ProtectedRoute>
             <PhotoCapture />
+          </ProtectedRoute>
+        } />
+        <Route path="/test-photo" element={
+          <ProtectedRoute>
+            <TestPhotoCapture />
           </ProtectedRoute>
         } />
         <Route path="/success" element={<SuccessPage />} />

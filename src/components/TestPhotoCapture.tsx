@@ -1,52 +1,33 @@
-import React, { useRef, useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { ReminderService } from '../services/reminderService'
+import React, { useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
-const PhotoCapture: React.FC = () => {
-  const { reminderId } = useParams<{ reminderId: string }>()
+const TestPhotoCapture: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
-  const [timeLeft, setTimeLeft] = useState(300) // 5 minutes in seconds
   const [isCapturing, setIsCapturing] = useState(false)
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!reminderId || !user) {
+  React.useEffect(() => {
+    if (!user) {
       navigate('/')
       return
     }
-
-    // Activate the reminder
-    ReminderService.activateReminder(reminderId)
-
-    // Start countdown timer
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          handleTimeExpired()
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
 
     // Start camera
     startCamera()
 
     return () => {
-      clearInterval(timer)
       stopCamera()
     }
-  }, [reminderId, user, navigate])
+  }, [user, navigate])
 
   const startCamera = async () => {
     try {
@@ -99,7 +80,7 @@ const PhotoCapture: React.FC = () => {
   }
 
   const uploadPhoto = async () => {
-    if (!capturedImage || !reminderId || !user) return
+    if (!capturedImage || !user) return
 
     setIsUploading(true)
     setError(null)
@@ -109,8 +90,9 @@ const PhotoCapture: React.FC = () => {
       const response = await fetch(capturedImage)
       const blob = await response.blob()
 
-      // Generate unique filename
-      const fileName = `${user.id}/${reminderId}_${Date.now()}.jpg`
+      // Generate filename that matches the storage policy: {user_id}/filename
+      // The policy requires: auth.uid()::text = (storage.foldername(name))[1]
+      const fileName = `${user.id}/test_${Date.now()}.jpg`
 
       // Upload to Supabase storage
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -120,52 +102,58 @@ const PhotoCapture: React.FC = () => {
           cacheControl: '3600'
         })
 
-      if (uploadError) throw uploadError
+      if (uploadError) {
+        // Handle specific RLS policy errors
+        if (uploadError.message.includes('row-level security policy')) {
+          throw new Error(
+            'Storage permission denied. Your policy requires photos to be in user ID folders. ' +
+            'Current path: ' + fileName
+          )
+        }
+        throw uploadError
+      }
 
       // Get public URL
       const { data: urlData } = supabase.storage
         .from('photos')
         .getPublicUrl(fileName)
 
-      // Complete the reminder
-      await ReminderService.completeReminder(reminderId, urlData.publicUrl)
+      // Show success message
+      alert(`Test photo uploaded successfully!\nURL: ${urlData.publicUrl}`)
 
-      // Navigate to success page
-      navigate('/success')
-    } catch (err) {
-      setError('Failed to upload photo. Please try again.')
+      // Navigate back to dashboard
+      navigate('/')
+    } catch (err: any) {
       console.error('Upload error:', err)
+
+      if (err.message.includes('Storage permission denied')) {
+        setError(err.message)
+      } else {
+        setError(`Failed to upload photo: ${err.message || 'Unknown error'}`)
+      }
     } finally {
       setIsUploading(false)
     }
   }
 
-  const handleTimeExpired = () => {
-    if (reminderId) {
-      ReminderService.expireReminder(reminderId)
-    }
-    navigate('/expired')
-  }
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
-  if (!reminderId || !user) {
+  if (!user) {
     return <div>Loading...</div>
   }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4">
-      {/* Header with timer */}
+      {/* Header */}
       <div className="text-center mb-6">
-        <h1 className="text-2xl font-bold mb-2">📸 Take Your Photo!</h1>
-        <div className="text-4xl font-mono font-bold text-red-500">
-          {formatTime(timeLeft)}
+        <h1 className="text-2xl font-bold mb-2">📸 Test Photo Capture</h1>
+        <p className="text-gray-400">Test the photo capture and upload functionality</p>
+        <div className="mt-4">
+          <button
+            onClick={() => navigate('/')}
+            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            ← Back to Dashboard
+          </button>
         </div>
-        <p className="text-gray-400">Time remaining to capture and upload</p>
       </div>
 
       {/* Camera view */}
@@ -183,6 +171,7 @@ const PhotoCapture: React.FC = () => {
               <div className="text-center">
                 <div className="text-6xl mb-2">📷</div>
                 <div className="text-lg">Position your camera</div>
+                <div className="text-sm text-gray-300 mt-2">This is a test - no time limit!</div>
               </div>
             </div>
           </div>
@@ -220,7 +209,7 @@ const PhotoCapture: React.FC = () => {
               disabled={isUploading}
               className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
             >
-              {isUploading ? 'Uploading...' : '✅ Upload Photo'}
+              {isUploading ? 'Uploading...' : '✅ Upload Test Photo'}
             </button>
             <button
               onClick={retakePhoto}
@@ -243,11 +232,33 @@ const PhotoCapture: React.FC = () => {
       {isUploading && (
         <div className="mt-4 text-center">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-          <p className="mt-2 text-gray-400">Uploading photo...</p>
+          <p className="mt-2 text-gray-400">Uploading test photo...</p>
         </div>
       )}
+
+      {/* Info box */}
+      <div className="mt-8 p-4 bg-blue-900 rounded-lg">
+        <h3 className="font-semibold mb-2">🧪 Test Mode Features:</h3>
+        <ul className="text-sm text-blue-200 space-y-1">
+          <li>• No time limit - take your time</li>
+          <li>• Photos saved to your user folder: {user.id}/</li>
+          <li>• Perfect for testing camera functionality</li>
+          <li>• No reminder scheduling required</li>
+        </ul>
+      </div>
+
+      {/* Storage Setup Info */}
+      <div className="mt-4 p-4 bg-green-900 rounded-lg">
+        <h3 className="font-semibold mb-2">✅ Storage Policy Configured:</h3>
+        <p className="text-sm text-green-200 mb-2">
+          Your storage policy is working correctly! Photos are saved to user-specific folders.
+        </p>
+        <div className="text-sm text-green-200">
+          <strong>Current policy:</strong> Users can only upload to their own folder
+        </div>
+      </div>
     </div>
   )
 }
 
-export default PhotoCapture
+export default TestPhotoCapture
