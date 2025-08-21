@@ -2,69 +2,80 @@ import { supabase } from '../lib/supabase'
 import type { Reminder, Photo } from '../lib/supabase'
 
 export class ReminderService {
-  private static notificationTimeout: NodeJS.Timeout | null = null
   private static isRunning = false
   private static currentUserId: string | null = null
   private static lastNotificationTime: number = 0
+  private static serviceWorkerRegistration: ServiceWorkerRegistration | null = null
 
-  // Start the notification service to run every 3 minutes
-  static startNotificationService(userId: string): void {
+  // Initialize service worker registration
+  private static async getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
+    if (!this.serviceWorkerRegistration && 'serviceWorker' in navigator) {
+      try {
+        this.serviceWorkerRegistration = await navigator.serviceWorker.register('/sw.js');
+        console.log('✅ Service Worker registered:', this.serviceWorkerRegistration);
+        return this.serviceWorkerRegistration;
+      } catch (error) {
+        console.error('❌ Service Worker registration failed:', error);
+        return null;
+      }
+    }
+    return this.serviceWorkerRegistration;
+  }
+
+  // Start the notification service to run every 3 minutes using Service Worker
+  static async startNotificationService(userId: string): Promise<void> {
     if (this.isRunning) {
       console.log('🔔 Notification service is already running')
       return
     }
 
     console.log('🔔 Starting notification service - will run every 3 minutes')
+
+    // Get service worker registration
+    const registration = await this.getServiceWorkerRegistration();
+    if (!registration) {
+      console.error('❌ Cannot start notification service: Service Worker not available');
+      return;
+    }
+
+    // Wait for service worker to be ready
+    await navigator.serviceWorker.ready;
+
     this.isRunning = true
     this.currentUserId = userId
     this.lastNotificationTime = Date.now()
 
-    // Run immediately on start
-    this.sendNotification(userId)
-
-    // Schedule next notification using recursive setTimeout (more reliable than setInterval)
-    this.scheduleNextNotification(userId)
+    // Send message to service worker to start background notifications
+    if (registration.active) {
+      registration.active.postMessage({
+        type: 'START_NOTIFICATION_SERVICE',
+        userId: userId,
+        intervalMinutes: 3
+      });
+      console.log('✅ Message sent to Service Worker to start background notifications');
+    }
 
     // Log the service setup
-    console.log('✅ Notification service started with recursive scheduling')
+    console.log('✅ Notification service started using Service Worker')
     console.log('🔍 Next notification in 3 minutes')
   }
 
-  // Recursively schedule the next notification
-  private static scheduleNextNotification(userId: string): void {
-    if (!this.isRunning || !this.currentUserId) {
-      console.log('⚠️ Service stopped, not scheduling next notification')
+  // Stop the notification service
+  static async stopNotificationService(): Promise<void> {
+    if (!this.isRunning) {
+      console.log('🔔 Notification service is not running')
       return
     }
 
-    // Clear any existing timeout
-    if (this.notificationTimeout) {
-      clearTimeout(this.notificationTimeout)
+    // Send message to service worker to stop background notifications
+    if (this.serviceWorkerRegistration?.active) {
+      this.serviceWorkerRegistration.active.postMessage({
+        type: 'STOP_NOTIFICATION_SERVICE',
+        userId: this.currentUserId
+      });
+      console.log('✅ Message sent to Service Worker to stop background notifications');
     }
 
-    // Schedule next notification in 3 minutes
-    this.notificationTimeout = setTimeout(() => {
-      if (this.isRunning && this.currentUserId) {
-        console.log('⏰ Timeout fired, sending notification...')
-        this.sendNotification(this.currentUserId)
-        this.lastNotificationTime = Date.now()
-
-        // Schedule the next notification recursively
-        this.scheduleNextNotification(this.currentUserId)
-      } else {
-        console.log('⚠️ Timeout fired but service not running')
-      }
-    }, 3 * 60 * 1000) // 3 minutes = 180,000 milliseconds
-
-    console.log('⏰ Next notification scheduled in 3 minutes')
-  }
-
-  // Stop the notification service
-  static stopNotificationService(): void {
-    if (this.notificationTimeout) {
-      clearTimeout(this.notificationTimeout)
-      this.notificationTimeout = null
-    }
     this.isRunning = false
     this.currentUserId = null
     this.lastNotificationTime = 0
@@ -96,6 +107,19 @@ export class ReminderService {
 
       // Send a notification immediately using the same logic as testNotification
   static async sendNotification(userId: string): Promise<void> {
+    // Try to use service worker first, fallback to direct notification
+    const registration = await this.getServiceWorkerRegistration();
+    if (registration?.active) {
+      registration.active.postMessage({
+        type: 'SEND_NOTIFICATION_NOW',
+        userId: userId
+      });
+      console.log('✅ Message sent to Service Worker to send notification now');
+      return;
+    }
+
+    // Fallback to direct notification if service worker not available
+    console.log('⚠️ Service Worker not available, using fallback notification');
     try {
       console.log('🔔 Sending automated notification for user:', userId)
 

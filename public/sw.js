@@ -3,8 +3,12 @@ const urlsToCache = [
   '/',
   '/static/js/bundle.js',
   '/static/css/main.css',
-  '/manifest.json'
+  '/manifest.json',
+  '/camera-icon.svg'
 ];
+
+// Store for background notification intervals
+let notificationIntervals = new Map();
 
 // Install event - cache resources
 self.addEventListener('install', (event) => {
@@ -44,18 +48,95 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Push notification event
+// Message event - handle communication from main app
+self.addEventListener('message', (event) => {
+  console.log('🔔 Service Worker: Received message:', event.data);
+
+  if (event.data.type === 'START_NOTIFICATION_SERVICE') {
+    startBackgroundNotificationService(event.data.userId, event.data.intervalMinutes);
+  } else if (event.data.type === 'STOP_NOTIFICATION_SERVICE') {
+    stopBackgroundNotificationService(event.data.userId);
+  } else if (event.data.type === 'SEND_NOTIFICATION_NOW') {
+    sendBackgroundNotification(event.data.userId);
+  }
+});
+
+// Start background notification service
+function startBackgroundNotificationService(userId, intervalMinutes = 3) {
+  console.log('🔔 Service Worker: Starting background notification service for user:', userId);
+
+  // Clear any existing interval for this user
+  if (notificationIntervals.has(userId)) {
+    clearInterval(notificationIntervals.get(userId));
+  }
+
+  // Send notification immediately
+  sendBackgroundNotification(userId);
+
+  // Set up interval for future notifications
+  const interval = setInterval(() => {
+    console.log('⏰ Service Worker: Background interval fired for user:', userId);
+    sendBackgroundNotification(userId);
+  }, intervalMinutes * 60 * 1000);
+
+  notificationIntervals.set(userId, interval);
+  console.log('✅ Service Worker: Background notification service started for user:', userId);
+}
+
+// Stop background notification service
+function stopBackgroundNotificationService(userId) {
+  console.log('🔔 Service Worker: Stopping background notification service for user:', userId);
+
+  if (notificationIntervals.has(userId)) {
+    clearInterval(notificationIntervals.get(userId));
+    notificationIntervals.delete(userId);
+    console.log('✅ Service Worker: Background notification service stopped for user:', userId);
+  }
+}
+
+// Send a background notification
+async function sendBackgroundNotification(userId) {
+  try {
+    console.log('🔔 Service Worker: Sending background notification for user:', userId);
+
+    // Create notification with sound
+    const options = {
+      body: 'Time to take a photo! Click to start.',
+      icon: '/camera-icon.svg',
+      badge: '/camera-icon.svg',
+      tag: `background-${userId}-${Date.now()}`,
+      requireInteraction: true,
+      silent: false // This should trigger system sound
+    };
+
+    // Show the notification
+    const notification = await self.registration.showNotification(
+      '📸 Photo Check Reminder!',
+      options
+    );
+
+    console.log('✅ Service Worker: Background notification sent successfully');
+
+    // Auto-close after 8 seconds
+    setTimeout(() => {
+      notification.close();
+    }, 8000);
+
+  } catch (error) {
+    console.error('❌ Service Worker: Failed to send background notification:', error);
+  }
+}
+
+// Push notification event (for future push notifications)
 self.addEventListener('push', (event) => {
   if (event.data) {
     const data = event.data.json();
     const options = {
       body: data.body || 'Time to take a photo!',
-      icon: '/diaper-icon.png',
-      badge: '/diaper-icon.png',
+      icon: '/camera-icon.svg',
+      badge: '/camera-icon.svg',
       tag: data.tag || 'photo-reminder',
       requireInteraction: true
-      // Note: Actions are supported in Service Worker notifications
-      // But we'll keep it simple for now
     };
 
     event.waitUntil(
@@ -72,7 +153,7 @@ self.addEventListener('notificationclick', (event) => {
 
   // Get reminder ID from notification tag if available
   const reminderId = event.notification.tag;
-  const notificationUrl = reminderId ? `/capture/${reminderId}` : '/';
+  const notificationUrl = reminderId && !reminderId.startsWith('background-') ? `/capture/${reminderId}` : '/';
 
   console.log('🔔 Service Worker: Navigating to:', notificationUrl);
 

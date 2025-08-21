@@ -96,15 +96,24 @@ const Dashboard: React.FC = () => {
     }
   }
 
-  const startNotificationService = () => {
+  const startNotificationService = async () => {
     if (!user) return
-    ReminderService.startNotificationService(user.id)
-    setNotificationServiceRunning(true)
+    try {
+      await ReminderService.startNotificationService(user.id)
+      setNotificationServiceRunning(true)
+    } catch (error) {
+      console.error('Failed to start notification service:', error)
+      alert('Failed to start notification service. Please try again.')
+    }
   }
 
-  const stopNotificationService = () => {
-    ReminderService.stopNotificationService()
-    setNotificationServiceRunning(false)
+  const stopNotificationService = async () => {
+    try {
+      await ReminderService.stopNotificationService()
+      setNotificationServiceRunning(false)
+    } catch (error) {
+      console.error('Failed to stop notification service:', error)
+    }
   }
 
   const scheduleRandomReminder = async () => {
@@ -313,24 +322,25 @@ const Dashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Recent Photos */}
+      {/* Photo Upload Status */}
       <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Photos</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Photo Upload Status</h2>
         {photoHistory.length === 0 ? (
           <p className="text-gray-500 text-center py-8">No photos uploaded yet</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="space-y-3">
             {photoHistory.slice(0, 6).map((photo) => (
-              <div key={photo.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                <img
-                  src={photo.photo_url}
-                  alt="Uploaded photo"
-                  className="w-full h-32 object-cover"
-                />
-                <div className="p-3">
-                  <p className="text-sm text-gray-600">
-                    Uploaded {formatDate(photo.uploaded_at)}
-                  </p>
+              <div key={photo.id} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
+                    <span className="text-green-600 text-sm">✓</span>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Photo uploaded successfully</p>
+                    <p className="text-sm text-gray-600">
+                      Uploaded {formatDate(photo.uploaded_at)}
+                    </p>
+                  </div>
                 </div>
               </div>
             ))}
@@ -339,12 +349,9 @@ const Dashboard: React.FC = () => {
 
         {photoHistory.length > 6 && (
           <div className="text-center mt-4">
-            <button
-              onClick={() => navigate('/history')}
-              className="text-blue-600 hover:text-blue-700 font-medium"
-            >
-              View All Photos →
-            </button>
+            <p className="text-sm text-gray-500">
+              {photoHistory.length} photos uploaded total
+            </p>
           </div>
         )}
       </div>
