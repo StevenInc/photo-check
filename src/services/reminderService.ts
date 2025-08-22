@@ -6,6 +6,7 @@ export class ReminderService {
   private static currentUserId: string | null = null
   private static lastNotificationTime: number = 0
   private static serviceWorkerRegistration: ServiceWorkerRegistration | null = null
+  private static audioContext: AudioContext | null = null
 
     // Initialize service worker registration
   private static async getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
@@ -74,10 +75,38 @@ export class ReminderService {
 
   // Play fallback notification sound in main app
   private static playFallbackNotificationSound(): void {
-    try {
-      console.log('🔊 Main app: Playing fallback notification sound...');
+    console.log('🔊 Main app: Playing fallback notification sound...');
 
-      // Try Web Audio API first
+    // Use a simple, reliable HTML5 audio approach
+    try {
+      // Create a new audio element each time to avoid reuse issues
+      const audio = new Audio();
+
+      // Use a simple beep sound that should work reliably
+      audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHOq+8+OWT';
+      audio.volume = 1.0;
+
+      // Play the sound
+      audio.play().then(() => {
+        console.log('✅ Main app: HTML5 audio played successfully');
+      }).catch(e => {
+        console.log('❌ Main app: HTML5 audio failed:', e);
+        // Try Web Audio API as fallback
+        this.playWebAudioBeep();
+      });
+
+    } catch (error) {
+      console.log('⚠️ Main app: HTML5 audio failed, trying Web Audio API...');
+      this.playWebAudioBeep();
+    }
+  }
+
+  // Web Audio API fallback
+  private static playWebAudioBeep(): void {
+    try {
+      console.log('🔊 Main app: Trying Web Audio API beep...');
+
+      // Create a new audio context each time to avoid state issues
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
@@ -85,44 +114,30 @@ export class ReminderService {
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
 
-      oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // 800Hz tone
+      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
       oscillator.type = 'sine';
-
       gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
 
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.5);
 
-      console.log('✅ Main app: Fallback notification sound played successfully');
+      console.log('✅ Main app: Web Audio API beep played successfully');
 
     } catch (error) {
-      console.log('⚠️ Main app: Web Audio API failed, trying HTML5 audio...');
-
-      // Fallback to HTML5 audio
-      try {
-        const audio = new Audio();
-        audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHOq+8+OWT';
-        audio.volume = 0.5;
-        audio.play().then(() => {
-          console.log('✅ Main app: HTML5 fallback audio played successfully');
-        }).catch(e => {
-          console.log('❌ Main app: HTML5 audio failed:', e);
-        });
-      } catch (fallbackError) {
-        console.log('❌ Main app: All audio methods failed:', fallbackError);
-      }
+      console.log('❌ Main app: All audio methods failed:', error);
     }
   }
 
     // Start the notification service to run every 3 minutes using Service Worker
   static async startNotificationService(userId: string): Promise<void> {
-    if (this.isRunning) {
-      console.log('🔔 Notification service is already running')
-      return
-    }
+    console.log('🔔 Starting notification service - will run every 3 minutes')
 
-    console.log('🔔 Starting notification service - will run every 30 seconds')
+    // If already running, stop it first and then restart
+    if (this.isRunning) {
+      console.log('🔄 Notification service is already running, stopping first...')
+      await this.stopNotificationService();
+    }
 
     // Get service worker registration
     const registration = await this.getServiceWorkerRegistration();
@@ -141,20 +156,20 @@ export class ReminderService {
     this.currentUserId = userId
     this.lastNotificationTime = Date.now()
 
-    // Send message to service worker to start background notifications
-    if (registration.active) {
-      registration.active.postMessage({
-        type: 'START_NOTIFICATION_SERVICE',
-        userId: userId,
-        intervalMinutes: 0.5, // 30 seconds (0.5 minutes) - will be overridden by service worker
-        durationHours: 4 // Run for 4 hours
-      });
-      console.log('✅ Message sent to Service Worker to start background notifications for 4 hours with random 5-20 min intervals');
-    }
+          // Send message to service worker to start background notifications
+      if (registration.active) {
+        registration.active.postMessage({
+          type: 'START_NOTIFICATION_SERVICE',
+          userId: userId,
+          intervalMinutes: 3, // 3 minutes for testing (will be used by service worker)
+          durationHours: 4 // Run for 4 hours
+        });
+        console.log('✅ Message sent to Service Worker to start background notifications for 4 hours with 3-minute intervals');
+      }
 
         // Log the service setup
     console.log('✅ Notification service started using Service Worker')
-    console.log('🔍 Will run for 4 hours with random 5-20 minute intervals')
+    console.log('🔍 Will run for 4 hours with 3-minute intervals')
   }
 
   // Stop the notification service
@@ -196,17 +211,17 @@ export class ReminderService {
     // Always return a time value if we have a last notification time, regardless of isRunning
     // This allows the countdown to work even during testing
 
-    // If no last notification time, assume next notification is in 5-20 minutes (average 12.5 min)
+    // If no last notification time, assume next notification is in 2-4 minutes (average 3 min)
     if (this.lastNotificationTime === 0) {
-      return 12.5 * 60 * 1000; // 12.5 minutes (average of 5-20 min range)
+      return 3 * 60 * 1000; // 3 minutes (average of 2-4 min range)
     }
 
     // Calculate actual time since last notification
     const timeSinceLast = Date.now() - this.lastNotificationTime
 
-    // Since we're now using random 5-20 minute intervals, we can't predict exactly when the next one will be
+    // Since we're now using random 2-4 minute intervals, we can't predict exactly when the next one will be
     // Return a reasonable estimate based on the average interval
-    const averageInterval = 12.5 * 60 * 1000; // 12.5 minutes average
+    const averageInterval = 3 * 60 * 1000; // 3 minutes average
     const timeUntilNext = averageInterval - timeSinceLast
 
     // If we're past due, return 0 (notification should appear soon)

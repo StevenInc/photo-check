@@ -25,6 +25,16 @@ function startHeartbeat() {
     for (const [userId, intervalId] of notificationIntervals.entries()) {
       console.log(`  User ${userId}: Interval ${intervalId}`);
     }
+
+    // Check if any timeouts are still valid
+    for (const [userId, timeoutId] of notificationIntervals.entries()) {
+      try {
+        // Try to access the timeout to see if it's still valid
+        console.log(`  User ${userId}: Timeout ${timeoutId} - checking validity...`);
+      } catch (error) {
+        console.error(`  User ${userId}: Timeout ${timeoutId} is invalid:`, error);
+      }
+    }
   }, 30000); // Every 30 seconds
 
   console.log('💓 Service Worker: Heartbeat started');
@@ -89,62 +99,78 @@ self.addEventListener('activate', (event) => {
 
 // Message event - handle communication from main app
 self.addEventListener('message', (event) => {
-  console.log('🔔 Service Worker: Received message:', event.data);
-  console.log('🔔 Service Worker: Message type:', event.data?.type);
-  console.log('🔔 Service Worker: Message data:', JSON.stringify(event.data));
+  try {
+    console.log('🔔 Service Worker: Received message:', event.data);
+    console.log('🔔 Service Worker: Message type:', event.data?.type);
+    console.log('🔔 Service Worker: Message data:', JSON.stringify(event.data));
 
-  if (event.data?.type === 'START_NOTIFICATION_SERVICE') {
+      if (event.data?.type === 'START_NOTIFICATION_SERVICE') {
     console.log('🚀 Service Worker: Processing START_NOTIFICATION_SERVICE message');
+    console.log('🚀 Service Worker: User ID:', event.data.userId);
+    console.log('🚀 Service Worker: Interval minutes:', event.data.intervalMinutes);
+    console.log('🚀 Service Worker: Duration hours:', event.data.durationHours);
+
+    // Check if service is already running for this user
+    if (notificationIntervals.has(event.data.userId)) {
+      console.log('🔄 Service Worker: Service already running for user, stopping first...');
+      stopBackgroundNotificationService(event.data.userId);
+    }
+
     startBackgroundNotificationService(event.data.userId, event.data.intervalMinutes, event.data.durationHours);
-  } else if (event.data?.type === 'STOP_NOTIFICATION_SERVICE') {
-    console.log('⏹️ Service Worker: Processing STOP_NOTIFICATION_SERVICE message');
-    stopBackgroundNotificationService(event.data.userId);
-  } else if (event.data?.type === 'SEND_NOTIFICATION_NOW') {
+    } else if (event.data?.type === 'STOP_NOTIFICATION_SERVICE') {
+      console.log('⏹️ Service Worker: Processing STOP_NOTIFICATION_SERVICE message');
+      stopBackgroundNotificationService(event.data.userId);
+      } else if (event.data?.type === 'SEND_NOTIFICATION_NOW') {
     console.log('📤 Service Worker: Processing SEND_NOTIFICATION_NOW message');
+    console.log('📤 Service Worker: Testing immediate notification...');
     sendBackgroundNotification(event.data.userId);
-  } else if (event.data?.type === 'GET_SERVICE_STATUS') {
-    console.log('📊 Service Worker: Processing GET_SERVICE_STATUS message');
-    // Send back the current status
-    const status = {
-      activeIntervals: notificationIntervals.size,
-      intervals: Array.from(notificationIntervals.entries()),
-      heartbeatActive: heartbeatInterval !== null
-    };
-    if (event.ports && event.ports[0]) {
-      event.ports[0].postMessage(status);
+    } else if (event.data?.type === 'GET_SERVICE_STATUS') {
+      console.log('📊 Service Worker: Processing GET_SERVICE_STATUS message');
+      // Send back the current status
+      const status = {
+        activeIntervals: notificationIntervals.size,
+        intervals: Array.from(notificationIntervals.entries()),
+        heartbeatActive: heartbeatInterval !== null
+      };
+      if (event.ports && event.ports[0]) {
+        event.ports[0].postMessage(status);
+      } else {
+        console.log('⚠️ Service Worker: No ports available for status response');
+      }
+    } else if (event.data?.type === 'COMMUNICATION_TEST') {
+      console.log('🧪 Service Worker: Processing COMMUNICATION_TEST message');
+      // Test communication by sending a response back
+      if (event.source) {
+        event.source.postMessage({
+          type: 'COMMUNICATION_TEST_RESPONSE',
+          timestamp: Date.now()
+        });
+        console.log('✅ Service Worker: Communication test response sent');
+      } else {
+        console.log('⚠️ Service Worker: No event source for communication test response');
+        }
+    } else if (event.data?.type === 'SKIP_WAITING') {
+      // Skip waiting and activate immediately
+      console.log('🔄 Service Worker: Received SKIP_WAITING message, activating...');
+      self.skipWaiting();
     } else {
-      console.log('⚠️ Service Worker: No ports available for status response');
+      console.log('⚠️ Service Worker: Unknown message type:', event.data?.type);
     }
-  } else if (event.data?.type === 'COMMUNICATION_TEST') {
-    console.log('🧪 Service Worker: Processing COMMUNICATION_TEST message');
-    // Test communication by sending a response back
-    if (event.source) {
-      event.source.postMessage({
-        type: 'COMMUNICATION_TEST_RESPONSE',
-        timestamp: Date.now()
-      });
-      console.log('✅ Service Worker: Communication test response sent');
-    } else {
-      console.log('⚠️ Service Worker: No event source for communication test response');
-    }
-  } else if (event.data?.type === 'SKIP_WAITING') {
-    // Skip waiting and activate immediately
-    console.log('🔄 Service Worker: Received SKIP_WAITING message, activating...');
-    self.skipWaiting();
-  } else {
-    console.log('⚠️ Service Worker: Unknown message type:', event.data?.type);
+  } catch (error) {
+    console.error('❌ Service Worker: Error in message handler:', error);
   }
 });
 
 // Start background notification service
 function startBackgroundNotificationService(userId, intervalMinutes = 3, durationHours = 4) {
+  console.log('🔔 Service Worker: FUNCTION CALLED - startBackgroundNotificationService');
   console.log('🔔 Service Worker: Starting background notification service for user:', userId);
-  console.log('🔔 Service Worker: Duration set to:', durationHours, 'hours with random 5-20 min intervals');
+  console.log('🔔 Service Worker: Duration set to:', durationHours, 'hours with random 2-4 min intervals');
 
-  // Clear any existing interval for this user
+  // Clear any existing timeout for this user
   if (notificationIntervals.has(userId)) {
-    console.log('🔄 Service Worker: Clearing existing interval for user:', userId);
-    clearInterval(notificationIntervals.get(userId));
+    console.log('🔄 Service Worker: Clearing existing timeout for user:', userId);
+    clearTimeout(notificationIntervals.get(userId));
     notificationIntervals.delete(userId);
   }
 
@@ -157,7 +183,7 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
   sendBackgroundNotification(userId);
 
   // Function to schedule next random notification
-  const scheduleNextRandomNotification = () => {
+  const scheduleNextNotification = () => {
     // Check if we've exceeded the 4-hour duration
     if (Date.now() >= endTime) {
       console.log('⏰ Service Worker: 4-hour duration reached, stopping notification service');
@@ -165,26 +191,40 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
       return;
     }
 
-    // Generate random interval between 5-20 minutes
-    const randomMinutes = Math.random() * 15 + 5; // 5 to 20 minutes
-    const randomMs = randomMinutes * 60 * 1000;
-
-    console.log('🔔 Service Worker: Next notification in', randomMinutes.toFixed(1), 'minutes (', randomMs, 'ms)');
+    // Use the interval from main app if provided, otherwise use random 2-4 minutes
+    let nextIntervalMs;
+    if (intervalMinutes && intervalMinutes > 0) {
+      // Use the main app's interval setting
+      nextIntervalMs = intervalMinutes * 60 * 1000;
+      console.log('🔔 Service Worker: Using main app interval:', intervalMinutes, 'minutes (', nextIntervalMs, 'ms)');
+    } else {
+      // Generate random interval between 2-4 minutes
+      const randomMinutes = Math.random() * 2 + 2; // 2 to 4 minutes
+      nextIntervalMs = randomMinutes * 60 * 1000;
+      console.log('🔔 Service Worker: Using random interval:', randomMinutes.toFixed(1), 'minutes (', nextIntervalMs, 'ms) - Testing mode: 2-4 min range');
+    }
 
     // Schedule the notification
+    console.log('⏰ Service Worker: Scheduling notification for user:', userId, 'in', (nextIntervalMs / 60000).toFixed(1), 'minutes');
     const timeoutId = setTimeout(() => {
+      console.log('⏰ Service Worker: Timeout fired for user:', userId, '- sending notification');
       sendBackgroundNotification(userId);
       // Schedule the next one recursively
-      scheduleNextRandomNotification();
-    }, randomMs);
+      console.log('🔄 Service Worker: Scheduling next notification for user:', userId);
+      try {
+        scheduleNextNotification();
+        console.log('✅ Service Worker: Next notification scheduled successfully');
+      } catch (error) {
+        console.error('❌ Service Worker: Failed to schedule next notification:', error);
+      }
+    }, nextIntervalMs);
 
     // Store the timeout ID
     notificationIntervals.set(userId, timeoutId);
+    console.log('⏰ Service Worker: Timeout stored with ID:', timeoutId, 'for user:', userId);
   };
 
-  // Start the first random notification
-  scheduleNextRandomNotification();
-  console.log('✅ Service Worker: Background notification service started with random 5-20 min intervals for 4 hours');
+  console.log('✅ Service Worker: Background notification service started with 3-minute intervals for 4 hours');
 }
 
 // Stop background notification service
@@ -192,7 +232,7 @@ function stopBackgroundNotificationService(userId) {
   console.log('🔔 Service Worker: Stopping background notification service for user:', userId);
 
   if (notificationIntervals.has(userId)) {
-    clearInterval(notificationIntervals.get(userId));
+    clearTimeout(notificationIntervals.get(userId));
     notificationIntervals.delete(userId);
     console.log('✅ Service Worker: Background notification service stopped for user:', userId);
   }
