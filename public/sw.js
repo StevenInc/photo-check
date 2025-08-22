@@ -20,13 +20,14 @@ function startHeartbeat() {
   heartbeatInterval = setInterval(() => {
     console.log('💓 Service Worker: Heartbeat - keeping alive');
     console.log('📊 Active notification intervals:', notificationIntervals.size);
+    console.log('💓 Service Worker: Current time:', new Date().toLocaleString());
 
     // Log all active intervals
     for (const [userId, intervalId] of notificationIntervals.entries()) {
-      console.log(`  User ${userId}: Interval ${intervalId}`);
+      console.log(`  User ${userId}: Timeout ${intervalId}`);
     }
 
-    // Check if any timeouts are still valid
+    // Check if any timeouts are still valid and log their expected times
     for (const [userId, timeoutId] of notificationIntervals.entries()) {
       try {
         // Try to access the timeout to see if it's still valid
@@ -35,7 +36,7 @@ function startHeartbeat() {
         console.error(`  User ${userId}: Timeout ${timeoutId} is invalid:`, error);
       }
     }
-  }, 30000); // Every 30 seconds
+  }, 10000); // Every 10 seconds for more frequent checking
 
   console.log('💓 Service Worker: Heartbeat started');
 }
@@ -206,8 +207,11 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
 
     // Schedule the notification
     console.log('⏰ Service Worker: Scheduling notification for user:', userId, 'in', (nextIntervalMs / 60000).toFixed(1), 'minutes');
+    console.log('⏰ Service Worker: Setting timeout for', nextIntervalMs, 'milliseconds...');
+
     const timeoutId = setTimeout(() => {
       console.log('⏰ Service Worker: Timeout fired for user:', userId, '- sending notification');
+      console.log('⏰ Service Worker: Current time when timeout fired:', new Date().toLocaleString());
       sendBackgroundNotification(userId);
       // Schedule the next one recursively
       console.log('🔄 Service Worker: Scheduling next notification for user:', userId);
@@ -222,8 +226,28 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
     // Store the timeout ID
     notificationIntervals.set(userId, timeoutId);
     console.log('⏰ Service Worker: Timeout stored with ID:', timeoutId, 'for user:', userId);
+    console.log('⏰ Service Worker: Current time:', new Date().toLocaleString());
+    console.log('⏰ Service Worker: Expected notification at:', new Date(Date.now() + nextIntervalMs).toLocaleString());
   };
 
+  // Start the recursive scheduling loop
+  console.log('🔄 Service Worker: About to start recursive scheduling loop...');
+  try {
+    scheduleNextNotification();
+    console.log('✅ Service Worker: Recursive scheduling loop started successfully');
+  } catch (error) {
+    console.error('❌ Service Worker: Failed to start recursive scheduling loop:', error);
+    console.log('🔄 Service Worker: Falling back to setInterval approach...');
+
+    // Fallback: use setInterval instead of recursive setTimeout
+    const intervalId = setInterval(() => {
+      console.log('⏰ Service Worker: Interval fired for user:', userId, '- sending notification');
+      sendBackgroundNotification(userId);
+    }, intervalMinutes * 60 * 1000);
+
+    notificationIntervals.set(userId, intervalId);
+    console.log('✅ Service Worker: Fallback setInterval started with ID:', intervalId);
+  }
   console.log('✅ Service Worker: Background notification service started with 3-minute intervals for 4 hours');
 }
 
