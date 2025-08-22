@@ -337,7 +337,7 @@ const Dashboard: React.FC = () => {
               try {
                 console.log('🔊 Testing notification sound...');
                 // Access the private method through a public interface
-                ReminderService['playFallbackNotificationSound']();
+                ReminderService['playWebAudioBeep']();
                 alert('🔊 Notification sound test triggered! Check console for details.');
               } catch (error) {
                 console.error('Failed to test notification sound:', error);

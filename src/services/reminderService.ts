@@ -64,7 +64,8 @@ export class ReminderService {
       console.log('✅ New countdown should be:', this.getTimeUntilNextNotification(), 'ms');
 
       // Play fallback notification sound in main app
-      this.playFallbackNotificationSound();
+      //this.playFallbackNotificationSound();
+      this.playWebAudioBeep();
     } else if (event.data.type === 'COMMUNICATION_TEST_RESPONSE') {
       // Handle communication test response
       console.log('✅ Main app: Received communication test response');
@@ -73,35 +74,9 @@ export class ReminderService {
     }
   }
 
-  // Play fallback notification sound in main app
-  private static playFallbackNotificationSound(): void {
-    console.log('🔊 Main app: Playing fallback notification sound...');
 
-    // Use a simple, reliable HTML5 audio approach
-    try {
-      // Create a new audio element each time to avoid reuse issues
-      const audio = new Audio();
 
-      // Use a simple beep sound that should work reliably
-      audio.src = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHOq+8+OWT';
-      audio.volume = 1.0;
-
-      // Play the sound
-      audio.play().then(() => {
-        console.log('✅ Main app: HTML5 audio played successfully');
-      }).catch(e => {
-        console.log('❌ Main app: HTML5 audio failed:', e);
-        // Try Web Audio API as fallback
-        this.playWebAudioBeep();
-      });
-
-    } catch (error) {
-      console.log('⚠️ Main app: HTML5 audio failed, trying Web Audio API...');
-      this.playWebAudioBeep();
-    }
-  }
-
-  // Web Audio API fallback
+    // Web Audio API fallback
   private static playWebAudioBeep(): void {
     try {
       console.log('🔊 Main app: Trying Web Audio API beep...');
@@ -114,13 +89,14 @@ export class ReminderService {
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
 
-      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+      // Use a more pleasant frequency (lower, softer tone)
+      oscillator.frequency.setValueAtTime(600, audioContext.currentTime); // Changed from 800 to 600 Hz
       oscillator.type = 'sine';
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+      gainNode.gain.setValueAtTime(0.2, audioContext.currentTime); // Reduced from 0.3 to 0.2
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.8); // Extended from 0.5 to 0.8 seconds
 
       oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.5);
+      oscillator.stop(audioContext.currentTime + 0.8); // Extended duration
 
       console.log('✅ Main app: Web Audio API beep played successfully');
 
