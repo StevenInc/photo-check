@@ -36,6 +36,8 @@ const PhotoCapture: React.FC = () => {
       console.log('📸 No reminder ID provided, using default capture mode for background notification');
     }
 
+
+
     // Start countdown timer
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -163,6 +165,9 @@ const PhotoCapture: React.FC = () => {
           cacheControl: '3600'
         })
 
+      let urlData: any = null
+      let finalFileName = fileName
+
       if (uploadError) {
         console.error('❌ Upload error:', uploadError)
 
@@ -186,36 +191,35 @@ const PhotoCapture: React.FC = () => {
           }
 
           console.log('✅ Retry upload succeeded with simplified path:', simpleFileName)
-          // Use the retry data instead
-          const { data: retryUrlData } = supabase.storage
-            .from('photos')
-            .getPublicUrl(simpleFileName)
-
-          // Continue with the retry URL data
-          urlData = retryUrlData
+          finalFileName = simpleFileName
         } else {
           throw uploadError
         }
       }
 
-      // Get public URL (urlData might be set by retry logic above)
-      let urlData
+      // Get public URL for the final filename
       if (!urlData) {
         const { data: urlResult } = supabase.storage
           .from('photos')
-          .getPublicUrl(fileName)
+          .getPublicUrl(finalFileName)
         urlData = urlResult
+      }
+
+      // Ensure we have a valid URL before proceeding
+      if (!urlData || !urlData.publicUrl) {
+        throw new Error('Failed to get public URL for uploaded photo')
       }
 
       // Log the URL to console for debugging
       console.log('📸 Reminder photo uploaded successfully!')
-      console.log('📁 File path:', fileName)
+      console.log('📁 File path:', finalFileName)
       console.log('🔗 Public URL:', urlData.publicUrl)
       console.log('📊 Storage data:', uploadData)
       console.log('⏰ Reminder ID:', reminderId)
 
       // Complete the reminder (skip for test reminder IDs and background notifications)
       if (reminderId && !reminderId.startsWith('test-')) {
+        console.log('🔄 Completing reminder...')
         await ReminderService.completeReminder(reminderId, urlData.publicUrl, user.id)
         console.log('✅ Photo uploaded and reminder completed successfully!')
       } else if (reminderId && reminderId.startsWith('test-')) {
@@ -226,11 +230,32 @@ const PhotoCapture: React.FC = () => {
         console.log('🔔 Background notification photo uploaded successfully! (No database update)')
       }
 
+      // Show success message before navigation
+      console.log('🎉 Photo upload completed successfully!')
+
+      // Small delay to ensure all operations complete before navigation
+      await new Promise(resolve => setTimeout(resolve, 500))
+
       // Navigate back to dashboard for all successful uploads
-      navigate('/')
+      console.log('🔄 Navigating back to dashboard...')
+      try {
+        navigate('/')
+        console.log('✅ Navigation successful')
+      } catch (navError) {
+        console.error('❌ Navigation failed:', navError)
+        // Fallback: try to reload the page
+        window.location.href = '/'
+      }
     } catch (err) {
+      console.error('❌ Upload error occurred:', err)
+      console.error('❌ Error details:', {
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : 'No stack trace',
+        reminderId,
+        hasUser: !!user,
+        hasCapturedImage: !!capturedImage
+      })
       setError('Failed to upload photo. Please try again.')
-      console.error('Upload error:', err)
     } finally {
       setIsUploading(false)
     }

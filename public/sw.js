@@ -185,12 +185,12 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
 
   // Function to schedule next random notification
   const scheduleNextNotification = () => {
-    // Check if we've exceeded the 4-hour duration
-    if (Date.now() >= endTime) {
-      console.log('⏰ Service Worker: 4-hour duration reached, stopping notification service');
-      stopBackgroundNotificationService(userId);
-      return;
-    }
+      // Check if we've exceeded the duration (1 hour for debugging)
+  if (Date.now() >= endTime) {
+    console.log('⏰ Service Worker: Duration reached, stopping notification service');
+    stopBackgroundNotificationService(userId);
+    return;
+  }
 
     // Use the interval from main app if provided, otherwise use random 2-4 minutes
     let nextIntervalMs;
@@ -199,14 +199,14 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
       nextIntervalMs = intervalMinutes * 60 * 1000;
       console.log('🔔 Service Worker: Using main app interval:', intervalMinutes, 'minutes (', nextIntervalMs, 'ms)');
     } else {
-      // Generate random interval between 2-4 minutes
-      const randomMinutes = Math.random() * 2 + 2; // 2 to 4 minutes
-      nextIntervalMs = randomMinutes * 60 * 1000;
-      console.log('🔔 Service Worker: Using random interval:', randomMinutes.toFixed(1), 'minutes (', nextIntervalMs, 'ms) - Testing mode: 2-4 min range');
+      // Generate random interval between 6-30 seconds for debugging
+      const randomSeconds = Math.random() * 24 + 6; // 6 to 30 seconds
+      nextIntervalMs = randomSeconds * 1000;
+      console.log('🔔 Service Worker: Using random interval:', randomSeconds.toFixed(1), 'seconds (', nextIntervalMs, 'ms) - DEBUG MODE: 6-30 sec range');
     }
 
     // Schedule the notification
-    console.log('⏰ Service Worker: Scheduling notification for user:', userId, 'in', (nextIntervalMs / 60000).toFixed(1), 'minutes');
+    console.log('⏰ Service Worker: Scheduling notification for user:', userId, 'in', (nextIntervalMs / 1000).toFixed(1), 'seconds');
     console.log('⏰ Service Worker: Setting timeout for', nextIntervalMs, 'milliseconds...');
 
     const timeoutId = setTimeout(() => {
@@ -243,12 +243,12 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
     const intervalId = setInterval(() => {
       console.log('⏰ Service Worker: Interval fired for user:', userId, '- sending notification');
       sendBackgroundNotification(userId);
-    }, intervalMinutes * 60 * 1000);
+    }, 15000); // 15 seconds for debugging (fallback)
 
     notificationIntervals.set(userId, intervalId);
     console.log('✅ Service Worker: Fallback setInterval started with ID:', intervalId);
   }
-  console.log('✅ Service Worker: Background notification service started with 3-minute intervals for 4 hours');
+  console.log('✅ Service Worker: Background notification service started with 6-30 second intervals for 1 hour (DEBUG MODE)');
 }
 
 // Stop background notification service
@@ -327,54 +327,45 @@ async function sendBackgroundNotification(userId) {
   }
 }
 
-// Play notification sound using Web Audio API
+// Request main app to play notification sound
 function playNotificationSound() {
-  try {
-    console.log('🔊 Service Worker: Playing notification sound...');
+  console.log('🔊 Service Worker: Requesting main app to play notification sound');
 
-    // Create audio context
-    const audioContext = new (self.AudioContext || self.webkitAudioContext)();
-
-    // Create oscillator for beep sound
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-
-    // Connect nodes
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-
-    // Set sound properties
-    oscillator.frequency.setValueAtTime(800, audioContext.currentTime); // 800Hz tone
-    oscillator.type = 'sine';
-
-    // Set volume and fade
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-
-    // Play sound
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.5);
-
-    console.log('✅ Service Worker: Notification sound played successfully');
-
-  } catch (error) {
-    console.log('⚠️ Service Worker: Failed to play notification sound:', error);
-
-    // Fallback: try to play a simple beep using HTML5 audio
-    try {
-      console.log('🔄 Service Worker: Trying fallback audio method...');
-
-      // Create a simple beep sound using base64 encoded audio
-      const audioData = 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHOq+8+OWT';
-
-      // Note: Service Workers can't directly create Audio objects, so we'll rely on the main app
-      // The main app will receive the NOTIFICATION_SENT message and can play sound there
-      console.log('ℹ️ Service Worker: Fallback audio will be handled by main app');
-
-    } catch (fallbackError) {
-      console.log('❌ Service Worker: All audio methods failed:', fallbackError);
+  // Send message to main app to request sound playback
+  self.clients.matchAll().then(clients => {
+    if (clients.length === 0) {
+      console.log('⚠️ Service Worker: No clients found for sound request');
+      return;
     }
-  }
+
+        // Only send sound requests to Dashboard page (root path)
+    const dashboardClients = clients.filter(client =>
+      client.url.endsWith('/') || client.url.endsWith('/#/') || client.url.includes('localhost:5174/')
+    );
+
+    console.log('🔍 Service Worker: Found clients:', clients.map(c => c.url));
+    console.log('🔍 Service Worker: Dashboard clients:', dashboardClients.map(c => c.url));
+
+    if (dashboardClients.length === 0) {
+      console.log('ℹ️ Service Worker: No Dashboard clients found, skipping sound request');
+      return;
+    }
+
+    dashboardClients.forEach(client => {
+      try {
+        console.log('📤 Service Worker: Sending PLAY_SOUND message to:', client.url);
+        client.postMessage({
+          type: 'PLAY_SOUND',
+          payload: { tone: 600, duration: 0.8 }
+        });
+        console.log('✅ Service Worker: Sound request sent to Dashboard:', client.url);
+      } catch (error) {
+        console.error('❌ Service Worker: Failed to send sound request to Dashboard:', error);
+      }
+    });
+  }).catch(error => {
+    console.error('❌ Service Worker: Error finding clients for sound request:', error);
+  });
 }
 
 // Notify main app that a notification was sent
@@ -392,13 +383,14 @@ function notifyMainAppOfNotificationSent(userId) {
 
     clients.forEach(client => {
       console.log('📤 Service Worker: Sending message to client:', client.url);
-      try {
+            try {
+        // Send notification sent message
         client.postMessage({
           type: 'NOTIFICATION_SENT',
           userId: userId,
           timestamp: Date.now()
         });
-        console.log('✅ Service Worker: Message sent to client successfully');
+        console.log('✅ Service Worker: NOTIFICATION_SENT message sent to client successfully');
       } catch (error) {
         console.error('❌ Service Worker: Failed to send message to client:', error);
       }

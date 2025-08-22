@@ -7,6 +7,7 @@ export class ReminderService {
   private static lastNotificationTime: number = 0
   private static serviceWorkerRegistration: ServiceWorkerRegistration | null = null
   private static audioContext: AudioContext | null = null
+  private static messageListenerSetUp = false
 
     // Initialize service worker registration
   private static async getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
@@ -21,7 +22,8 @@ export class ReminderService {
           this.serviceWorkerRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
         }
 
-        // Set up message listener for service worker communication
+        // Set up message listener for service worker communication (only once during registration)
+        console.log('🔔 Setting up message listener during initial service worker registration...');
         this.setupServiceWorkerMessageListener();
 
         return this.serviceWorkerRegistration;
@@ -35,6 +37,12 @@ export class ReminderService {
 
         // Set up message listener for service worker
   private static setupServiceWorkerMessageListener(): void {
+    // Only set up once to avoid interference
+    if (this.messageListenerSetUp) {
+      console.log('🔔 Main app: Message listener already set up, skipping...');
+      return;
+    }
+
     if ('serviceWorker' in navigator) {
       console.log('🔔 Main app: Setting up message listener for Service Worker');
 
@@ -44,8 +52,8 @@ export class ReminderService {
       // Add the message listener
       navigator.serviceWorker.addEventListener('message', this.handleServiceWorkerMessage);
 
-      // Test the listener immediately
-      console.log('🧪 Testing message listener setup...');
+      // Mark as set up
+      this.messageListenerSetUp = true;
 
       console.log('✅ Main app: Message listener set up successfully');
     } else {
@@ -65,10 +73,31 @@ export class ReminderService {
 
       // Play fallback notification sound in main app
       //this.playFallbackNotificationSound();
-      this.playWebAudioBeep();
+      this.playWebAudioBeep(); // Uses default tone (600Hz) and duration (0.8s)
+    } else if (event.data.type === 'PLAY_SOUND') {
+      // Handle sound playback request from service worker
+      console.log('🔊 Main app: Received PLAY_SOUND request from Service Worker');
+      console.log('🔊 Main app: Sound payload:', event.data.payload);
+
+      // Play the requested sound with custom parameters
+      const { tone = 600, duration = 0.8 } = event.data.payload || {};
+      this.playWebAudioBeep(tone, duration);
     } else if (event.data.type === 'COMMUNICATION_TEST_RESPONSE') {
       // Handle communication test response
       console.log('✅ Main app: Received communication test response');
+    } else if (event.data.type === 'TEST_MESSAGE') {
+      // Handle test message from service worker
+      console.log('🧪 Main app: Received TEST_MESSAGE from Service Worker');
+      console.log('🧪 Test message payload:', event.data.payload);
+
+      // Send a response back to confirm communication is working
+      if ('serviceWorker' in navigator && this.serviceWorkerRegistration?.active) {
+        this.serviceWorkerRegistration.active.postMessage({
+          type: 'TEST_MESSAGE_RESPONSE',
+          payload: { received: true, timestamp: Date.now() }
+        });
+        console.log('✅ Main app: Sent TEST_MESSAGE_RESPONSE back to Service Worker');
+      }
     } else {
       console.log('⚠️ Main app: Received unknown message type:', event.data.type);
     }
@@ -77,10 +106,11 @@ export class ReminderService {
 
 
     // Web Audio API fallback
-  private static playWebAudioBeep(): void {
-    try {
-      console.log('🔊 Main app: Trying Web Audio API beep...');
+  private static playWebAudioBeep(tone: number = 600, duration: number = 0.8): void {
+    console.log('🔊 playWebAudioBeep: Trying Web Audio API beep...');
+    console.log('🔊 playWebAudioBeep: Tone:', tone, 'Hz, Duration:', duration, 's');
 
+    try {
       // Create a new audio context each time to avoid state issues
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const oscillator = audioContext.createOscillator();
@@ -89,19 +119,19 @@ export class ReminderService {
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
 
-      // Use a more pleasant frequency (lower, softer tone)
-      oscillator.frequency.setValueAtTime(600, audioContext.currentTime); // Changed from 800 to 600 Hz
+      // Use the provided tone and duration, or defaults
+      oscillator.frequency.setValueAtTime(tone, audioContext.currentTime);
       oscillator.type = 'sine';
-      gainNode.gain.setValueAtTime(0.2, audioContext.currentTime); // Reduced from 0.3 to 0.2
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.8); // Extended from 0.5 to 0.8 seconds
+      gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
 
       oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.8); // Extended duration
+      oscillator.stop(audioContext.currentTime + duration);
 
-      console.log('✅ Main app: Web Audio API beep played successfully');
+      console.log('✅ playWebAudioBeep: Web Audio API beep played successfully');
 
     } catch (error) {
-      console.log('❌ Main app: All audio methods failed:', error);
+      console.log('❌ playWebAudioBeep: All audio methods failed:', error);
     }
   }
 
@@ -112,6 +142,7 @@ export class ReminderService {
     // If already running, stop it first and then restart
     if (this.isRunning) {
       console.log('🔄 Notification service is already running, stopping first...')
+      console.log('🔍 This is likely what is stopping your recurring notifications!');
       await this.stopNotificationService();
     }
 
@@ -122,8 +153,8 @@ export class ReminderService {
       return;
     }
 
-    // Ensure message listener is set up for receiving notifications
-    this.setupServiceWorkerMessageListener();
+    // Message listener is already set up during service worker registration
+    console.log('🔔 Message listener already set up, skipping redundant setup...');
 
     // Wait for service worker to be ready
     await navigator.serviceWorker.ready;
@@ -137,10 +168,10 @@ export class ReminderService {
         registration.active.postMessage({
           type: 'START_NOTIFICATION_SERVICE',
           userId: userId,
-          intervalMinutes: 3, // 3 minutes for testing (will be used by service worker)
-          durationHours: 4 // Run for 4 hours
+          intervalMinutes: 0, // 0 means use random 6-30 second intervals (DEBUG MODE)
+          durationHours: 1 // Run for 1 hour for debugging
         });
-        console.log('✅ Message sent to Service Worker to start background notifications for 4 hours with 3-minute intervals');
+        console.log('✅ Message sent to Service Worker to start background notifications for 1 hour with 6-30 second intervals (DEBUG MODE)');
       }
 
         // Log the service setup
@@ -309,6 +340,8 @@ export class ReminderService {
 
       // Send a notification immediately using the same logic as testNotification
   static async sendNotification(userId: string): Promise<void> {
+            //add audio notification
+            this.playWebAudioBeep();
     // Try to use service worker first, fallback to direct notification
     const registration = await this.getServiceWorkerRegistration();
     if (registration?.active) {
@@ -379,6 +412,8 @@ export class ReminderService {
             console.log('🔊 All audio methods failed:', fallbackError)
           }
         }
+
+
 
         // Create the notification with the real reminder ID
         const notification = new Notification('📸 Photo Check Reminder!', {
@@ -579,6 +614,55 @@ export class ReminderService {
 
     if (error) throw error
     return data || []
+  }
+
+  // Reset message listener (useful for debugging or service worker updates)
+  static resetMessageListener(): void {
+    if (this.messageListenerSetUp) {
+      console.log('🔄 Resetting message listener...');
+      navigator.serviceWorker.removeEventListener('message', this.handleServiceWorkerMessage);
+      this.messageListenerSetUp = false;
+      console.log('✅ Message listener reset successfully');
+    }
+  }
+
+  // Check if message listener is set up
+  static isMessageListenerSetUp(): boolean {
+    return this.messageListenerSetUp;
+  }
+
+  // Manually set up message listener (useful for debugging)
+  static forceSetupMessageListener(): void {
+    console.log('🔔 Force setting up message listener...');
+    this.messageListenerSetUp = false; // Reset flag to allow setup
+    this.setupServiceWorkerMessageListener();
+  }
+
+  // Ensure message listener is active (without resetting if already set up)
+  static ensureMessageListenerActive(): void {
+    if (!this.messageListenerSetUp) {
+      console.log('🔔 Message listener not set up, setting it up now...');
+      this.setupServiceWorkerMessageListener();
+    } else {
+      console.log('🔔 Message listener already active, no setup needed');
+    }
+  }
+
+  // Test if message listener is working by sending a test message
+  static testMessageListener(): void {
+    console.log('🧪 Testing message listener...');
+    console.log('🧪 Message listener status:', this.messageListenerSetUp);
+
+    if ('serviceWorker' in navigator && this.serviceWorkerRegistration?.active) {
+      console.log('🧪 Sending test message to service worker...');
+      this.serviceWorkerRegistration.active.postMessage({
+        type: 'TEST_MESSAGE',
+        payload: { test: true, timestamp: Date.now() }
+      });
+      console.log('🧪 Test message sent, check console for response');
+    } else {
+      console.log('❌ Cannot test: service worker not available');
+    }
   }
 
   // Test notification method with delay and sound

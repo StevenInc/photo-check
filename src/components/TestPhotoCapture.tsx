@@ -22,6 +22,8 @@ const TestPhotoCapture: React.FC = () => {
       return
     }
 
+
+
     // Start camera
     startCamera()
 

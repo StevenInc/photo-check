@@ -18,6 +18,12 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     if (!user) return
 
+    console.log('🔄 Dashboard: useEffect triggered - user changed or component mounted');
+
+    // Ensure service worker message listener is active
+    console.log('🔔 Dashboard: Ensuring service worker message listener is active');
+    ReminderService.ensureMessageListenerActive();
+
     loadDashboardData()
     checkNotificationPermission()
   }, [user])
@@ -361,6 +367,13 @@ const Dashboard: React.FC = () => {
             className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
             🧪 Test Service Notification (10s + Sound)
+          </button>
+
+          <button
+            onClick={() => ReminderService.testMessageListener()}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            🔍 Test Message Listener
           </button>
 
           <button
