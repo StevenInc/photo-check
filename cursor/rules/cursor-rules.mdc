@@ -1,0 +1,10 @@
+---
+description: "general rules for Cursor to follow"
+globs:
+alwaysApply: true
+---
+
+Stay focused on one task at a time. I want you to ask to proceed when you add additional features.
+Respond to each task with the steps to complete the task, but do not execute the step until I approve them. I want to have the ability to edit the steps before proceeding.
+
+Ask to run npm run build instead of npm run dev after code has been modified.

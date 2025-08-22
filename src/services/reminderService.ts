@@ -131,6 +131,9 @@ export class ReminderService {
       return;
     }
 
+    // Ensure message listener is set up for receiving notifications
+    this.setupServiceWorkerMessageListener();
+
     // Wait for service worker to be ready
     await navigator.serviceWorker.ready;
 

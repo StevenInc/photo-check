@@ -227,6 +227,7 @@ async function sendBackgroundNotification(userId) {
     playNotificationSound();
 
     // Notify the main app that a notification was sent
+    console.log('📤 Service Worker: About to notify main app of notification sent for user:', userId);
     notifyMainAppOfNotificationSent(userId);
 
     // Auto-close after 8 seconds (only if notification was created successfully)
