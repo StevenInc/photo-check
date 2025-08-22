@@ -95,7 +95,7 @@ self.addEventListener('message', (event) => {
 
   if (event.data?.type === 'START_NOTIFICATION_SERVICE') {
     console.log('🚀 Service Worker: Processing START_NOTIFICATION_SERVICE message');
-    startBackgroundNotificationService(event.data.userId, event.data.intervalMinutes);
+    startBackgroundNotificationService(event.data.userId, event.data.intervalMinutes, event.data.durationHours);
   } else if (event.data?.type === 'STOP_NOTIFICATION_SERVICE') {
     console.log('⏹️ Service Worker: Processing STOP_NOTIFICATION_SERVICE message');
     stopBackgroundNotificationService(event.data.userId);
@@ -137,45 +137,54 @@ self.addEventListener('message', (event) => {
 });
 
 // Start background notification service
-function startBackgroundNotificationService(userId, intervalMinutes = 3) {
+function startBackgroundNotificationService(userId, intervalMinutes = 3, durationHours = 4) {
   console.log('🔔 Service Worker: Starting background notification service for user:', userId);
-  console.log('🔔 Service Worker: User ID:', userId);
-  console.log('🔔 Service Worker: Interval minutes:', intervalMinutes);
-  console.log('🔔 Service Worker: Interval milliseconds:', intervalMinutes * 60 * 1000);
+  console.log('🔔 Service Worker: Duration set to:', durationHours, 'hours with random 5-20 min intervals');
 
   // Clear any existing interval for this user
   if (notificationIntervals.has(userId)) {
     console.log('🔄 Service Worker: Clearing existing interval for user:', userId);
     clearInterval(notificationIntervals.get(userId));
+    notificationIntervals.delete(userId);
   }
+
+  // Calculate end time (4 hours from now)
+  const endTime = Date.now() + (durationHours * 60 * 60 * 1000);
+  console.log('🔔 Service Worker: Service will run until:', new Date(endTime).toLocaleString());
 
   // Send notification immediately
   console.log('📤 Service Worker: Sending immediate notification...');
   sendBackgroundNotification(userId);
 
-  // Set up interval for future notifications
-  const interval = setInterval(() => {
-    console.log('⏰ Service Worker: Background interval fired for user:', userId);
-    sendBackgroundNotification(userId);
-  }, intervalMinutes * 60 * 1000); // intervalMinutes * 60 * 1000 for minutes, or just 30000 for 30 seconds
+  // Function to schedule next random notification
+  const scheduleNextRandomNotification = () => {
+    // Check if we've exceeded the 4-hour duration
+    if (Date.now() >= endTime) {
+      console.log('⏰ Service Worker: 4-hour duration reached, stopping notification service');
+      stopBackgroundNotificationService(userId);
+      return;
+    }
 
-  console.log('⏰ Service Worker: Created interval with ID:', interval);
-  notificationIntervals.set(userId, interval);
+    // Generate random interval between 5-20 minutes
+    const randomMinutes = Math.random() * 15 + 5; // 5 to 20 minutes
+    const randomMs = randomMinutes * 60 * 1000;
 
-  console.log('✅ Service Worker: Background notification service started for user:', userId);
-  console.log('⏰ Interval ID:', interval, 'for user:', userId);
-  console.log('⏰ Next notification scheduled in:', intervalMinutes * 60, 'seconds');
+    console.log('🔔 Service Worker: Next notification in', randomMinutes.toFixed(1), 'minutes (', randomMs, 'ms)');
 
-  // Log all active intervals for debugging
-  console.log('📊 Active intervals:', Array.from(notificationIntervals.entries()));
-  console.log('📊 Total intervals in Map:', notificationIntervals.size);
+    // Schedule the notification
+    const timeoutId = setTimeout(() => {
+      sendBackgroundNotification(userId);
+      // Schedule the next one recursively
+      scheduleNextRandomNotification();
+    }, randomMs);
 
-  // Verify the interval was stored correctly
-  if (notificationIntervals.has(userId)) {
-    console.log('✅ Service Worker: Interval successfully stored for user:', userId);
-  } else {
-    console.error('❌ Service Worker: Failed to store interval for user:', userId);
-  }
+    // Store the timeout ID
+    notificationIntervals.set(userId, timeoutId);
+  };
+
+  // Start the first random notification
+  scheduleNextRandomNotification();
+  console.log('✅ Service Worker: Background notification service started with random 5-20 min intervals for 4 hours');
 }
 
 // Stop background notification service

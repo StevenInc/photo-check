@@ -202,12 +202,12 @@ const Dashboard: React.FC = () => {
               }`}>
                 {notificationServiceRunning
                   ? `Next notification in ${nextNotificationTime ? Math.ceil(nextNotificationTime / 1000) : 30} seconds`
-                  : 'Click "Start Notification Service" to begin receiving automatic reminders every 30 seconds'
+                  : 'Click "Start Notification Service" to begin receiving automatic reminders with random 5-20 min intervals for 4 hours'
                 }
               </p>
               {notificationServiceRunning && (
                 <p className="text-xs text-green-600 mt-1">
-                  Service will continue running in the background every 30 seconds
+                  Service will continue running in the background with random 5-20 min intervals for 4 hours
                 </p>
               )}
             </div>
@@ -241,7 +241,7 @@ const Dashboard: React.FC = () => {
             disabled={notificationPermission !== 'granted'}
             className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
-            🚀 Start Notification Service (Every 30 sec)
+            🚀 Start Notification Service (Random 5-20 min for 4 hours)
           </button>
 
           <button

@@ -146,14 +146,15 @@ export class ReminderService {
       registration.active.postMessage({
         type: 'START_NOTIFICATION_SERVICE',
         userId: userId,
-        intervalMinutes: 0.5 // 30 seconds (0.5 minutes)
+        intervalMinutes: 0.5, // 30 seconds (0.5 minutes) - will be overridden by service worker
+        durationHours: 4 // Run for 4 hours
       });
-      console.log('✅ Message sent to Service Worker to start background notifications every 30 seconds');
+      console.log('✅ Message sent to Service Worker to start background notifications for 4 hours with random 5-20 min intervals');
     }
 
         // Log the service setup
     console.log('✅ Notification service started using Service Worker')
-    console.log('🔍 Next notification in 30 seconds')
+    console.log('🔍 Will run for 4 hours with random 5-20 minute intervals')
   }
 
   // Stop the notification service
@@ -195,14 +196,18 @@ export class ReminderService {
     // Always return a time value if we have a last notification time, regardless of isRunning
     // This allows the countdown to work even during testing
 
-    // If no last notification time, assume next notification is in 30 seconds
+    // If no last notification time, assume next notification is in 5-20 minutes (average 12.5 min)
     if (this.lastNotificationTime === 0) {
-      return 30 * 1000; // 30 seconds
+      return 12.5 * 60 * 1000; // 12.5 minutes (average of 5-20 min range)
     }
 
     // Calculate actual time since last notification
     const timeSinceLast = Date.now() - this.lastNotificationTime
-    const timeUntilNext = (30 * 1000) - timeSinceLast // 30 seconds minus elapsed time
+
+    // Since we're now using random 5-20 minute intervals, we can't predict exactly when the next one will be
+    // Return a reasonable estimate based on the average interval
+    const averageInterval = 12.5 * 60 * 1000; // 12.5 minutes average
+    const timeUntilNext = averageInterval - timeSinceLast
 
     // If we're past due, return 0 (notification should appear soon)
     if (timeUntilNext <= 0) {
