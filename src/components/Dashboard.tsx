@@ -318,6 +318,42 @@ const Dashboard: React.FC = () => {
             🧪 Test Communication
           </button>
 
+                    <button
+            onClick={async () => {
+              if (user) {
+                console.log('🧪 Testing database insertion manually...');
+                try {
+                  const timestamp = Date.now();
+                  console.log('🧪 Test timestamp:', timestamp);
+
+                  // Use a public test method instead
+                  await ReminderService.testDatabaseInsertion(user.id, timestamp);
+                } catch (error) {
+                  console.error('❌ Test database insertion failed:', error);
+                }
+              }
+            }}
+            className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            🧪 Test Database Insertion
+          </button>
+
+          <button
+            onClick={async () => {
+              console.log('🧹 Cleaning up expired reminders...');
+              try {
+                await ReminderService.cleanupExpiredReminders();
+                alert('✅ Expired reminders cleanup completed!');
+              } catch (error) {
+                console.error('❌ Cleanup failed:', error);
+                alert('❌ Cleanup failed. Check console for details.');
+              }
+            }}
+            className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            🧹 Cleanup Expired Reminders
+          </button>
+
           <button
             onClick={async () => {
               try {

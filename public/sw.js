@@ -124,7 +124,7 @@ self.addEventListener('message', (event) => {
       } else if (event.data?.type === 'SEND_NOTIFICATION_NOW') {
     console.log('📤 Service Worker: Processing SEND_NOTIFICATION_NOW message');
     console.log('📤 Service Worker: Testing immediate notification...');
-    sendBackgroundNotification(event.data.userId);
+    sendBackgroundNotification(event.data.userId, true); // true = insert into database for manual notifications
     } else if (event.data?.type === 'GET_SERVICE_STATUS') {
       console.log('📊 Service Worker: Processing GET_SERVICE_STATUS message');
       // Send back the current status
@@ -179,9 +179,9 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
   const endTime = Date.now() + (durationHours * 60 * 60 * 1000);
   console.log('🔔 Service Worker: Service will run until:', new Date(endTime).toLocaleString());
 
-  // Send notification immediately
+  // Send notification immediately (but don't insert into database - this is just the initial notification)
   console.log('📤 Service Worker: Sending immediate notification...');
-  sendBackgroundNotification(userId);
+  sendBackgroundNotification(userId, false); // false = don't insert into database
 
   // Function to schedule next random notification
   const scheduleNextNotification = () => {
@@ -212,7 +212,7 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
     const timeoutId = setTimeout(() => {
       console.log('⏰ Service Worker: Timeout fired for user:', userId, '- sending notification');
       console.log('⏰ Service Worker: Current time when timeout fired:', new Date().toLocaleString());
-      sendBackgroundNotification(userId);
+      sendBackgroundNotification(userId, true); // true = insert into database for scheduled notifications
       // Schedule the next one recursively
       console.log('🔄 Service Worker: Scheduling next notification for user:', userId);
       try {
@@ -242,7 +242,7 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
     // Fallback: use setInterval instead of recursive setTimeout
     const intervalId = setInterval(() => {
       console.log('⏰ Service Worker: Interval fired for user:', userId, '- sending notification');
-      sendBackgroundNotification(userId);
+      sendBackgroundNotification(userId, true); // true = insert into database for fallback notifications
     }, 15000); // 15 seconds for debugging (fallback)
 
     notificationIntervals.set(userId, intervalId);
@@ -263,9 +263,9 @@ function stopBackgroundNotificationService(userId) {
 }
 
 // Send a background notification
-async function sendBackgroundNotification(userId) {
+async function sendBackgroundNotification(userId, shouldInsertReminder = true) {
   try {
-    console.log('🔔 Service Worker: Sending background notification for user:', userId);
+    console.log('🔔 Service Worker: Sending background notification for user:', userId, 'shouldInsertReminder:', shouldInsertReminder);
 
     // Create notification with sound
     const options = {
@@ -302,6 +302,33 @@ async function sendBackgroundNotification(userId) {
     // Notify the main app that a notification was sent
     console.log('📤 Service Worker: About to notify main app of notification sent for user:', userId);
     notifyMainAppOfNotificationSent(userId);
+
+    // Send message to insert reminder in database (only if shouldInsertReminder is true)
+    if (shouldInsertReminder) {
+      console.log('📤 Service Worker: About to send INSERT_REMINDER message for user:', userId);
+      self.clients.matchAll().then(clients => {
+        if (clients.length > 0) {
+          clients.forEach(client => {
+            try {
+              client.postMessage({
+                type: 'INSERT_REMINDER',
+                userId: userId,
+                timestamp: Date.now()
+              });
+              console.log('✅ Service Worker: INSERT_REMINDER message sent to client:', client.url);
+            } catch (error) {
+              console.error('❌ Service Worker: Failed to send INSERT_REMINDER message to client:', error);
+            }
+          });
+        } else {
+          console.log('⚠️ Service Worker: No clients found for INSERT_REMINDER message');
+        }
+      }).catch(error => {
+        console.error('❌ Service Worker: Error finding clients for INSERT_REMINDER message:', error);
+      });
+    } else {
+      console.log('📤 Service Worker: Skipping database insertion for this notification (shouldInsertReminder = false)');
+    }
 
     // Auto-close after 8 seconds (only if notification was created successfully)
     if (notification && typeof notification.close === 'function') {

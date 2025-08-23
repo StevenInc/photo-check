@@ -98,6 +98,13 @@ export class ReminderService {
         });
         console.log('✅ Main app: Sent TEST_MESSAGE_RESPONSE back to Service Worker');
       }
+    } else if (event.data.type === 'INSERT_REMINDER') {
+      // Handle insert reminder message from service worker
+      console.log('📝 Main app: Received INSERT_REMINDER message from Service Worker');
+      console.log('📝 Insert reminder payload:', event.data);
+
+      // Insert reminder into database
+      this.insertReminderFromNotification(event.data.userId, event.data.timestamp);
     } else {
       console.log('⚠️ Main app: Received unknown message type:', event.data.type);
     }
@@ -743,6 +750,116 @@ export class ReminderService {
 
     } else {
       console.warn('🔔 Cannot send test notification: notifications not permitted')
+    }
+  }
+
+        // Insert a reminder into the database when a notification is sent
+  private static async insertReminderFromNotification(userId: string, timestamp: number): Promise<void> {
+    try {
+      console.log('📝 Inserting reminder into database for user:', userId, 'at timestamp:', timestamp);
+      console.log('📝 User ID type:', typeof userId, 'Value:', userId);
+      console.log('📝 Timestamp type:', typeof timestamp, 'Value:', timestamp);
+
+      // Use a much shorter time window to prevent only truly rapid duplicates
+      // Check if there's already an active reminder created very recently (within 10 seconds)
+      console.log('📝 Checking for very recent reminders to prevent rapid duplicates...');
+      const { data: recentReminders, error: checkError } = await supabase
+        .from('reminders')
+        .select('id, status, created_at')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .gte('created_at', new Date(timestamp - 10000).toISOString()) // Only check reminders created in last 10 seconds
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (checkError) {
+        console.error('❌ Failed to check recent reminders:', checkError);
+        return;
+      }
+
+      if (recentReminders && recentReminders.length > 0) {
+        const recentReminder = recentReminders[0];
+        const timeSinceLastReminder = timestamp - new Date(recentReminder.created_at).getTime();
+        const timeSinceLastReminderSeconds = timeSinceLastReminder / 1000;
+
+        console.log('📝 Found very recent reminder:', recentReminder.id);
+        console.log('📝 Time since last reminder:', timeSinceLastReminderSeconds.toFixed(1), 'seconds');
+
+        // If the last reminder was created less than 10 seconds ago, skip insertion
+        if (timeSinceLastReminderSeconds < 10) {
+          console.log('📝 Skipping insertion - last reminder was created less than 10 seconds ago (rapid duplicate)');
+          return;
+        }
+
+        console.log('📝 Proceeding with insertion - sufficient time has passed since last reminder');
+      } else {
+        console.log('📝 No very recent reminders found, proceeding with insertion');
+      }
+
+      // Calculate scheduled_at and expires_at times
+      const scheduledAt = new Date(timestamp);
+      const expiresAt = new Date(timestamp + (5 * 60 * 1000)); // 5 minutes from notification time
+
+      console.log('📝 Scheduled at:', scheduledAt.toISOString());
+      console.log('📝 Expires at:', expiresAt.toISOString());
+
+      // Log the data being inserted
+      const insertData = {
+        user_id: userId,
+        scheduled_at: scheduledAt.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        status: 'active'
+      };
+      console.log('📝 Data to insert:', insertData);
+
+      // Insert the reminder into the database
+      console.log('📝 About to call supabase.insert...');
+      const { data, error } = await supabase
+        .from('reminders')
+        .insert(insertData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Failed to insert reminder into database:', error);
+        console.error('❌ Error details:', JSON.stringify(error, null, 2));
+        return;
+      }
+
+      console.log('✅ Successfully inserted reminder into database:', data);
+
+    } catch (error) {
+      console.error('❌ Error inserting reminder into database:', error);
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    }
+  }
+
+  // Test method for database insertion (public for testing)
+  static async testDatabaseInsertion(userId: string, timestamp: number): Promise<void> {
+    console.log('🧪 Testing database insertion with user ID:', userId, 'and timestamp:', timestamp);
+    await this.insertReminderFromNotification(userId, timestamp);
+  }
+
+  // Clean up old expired reminders (public for maintenance)
+  static async cleanupExpiredReminders(): Promise<void> {
+    try {
+      console.log('🧹 Cleaning up expired reminders...');
+
+      const { data, error } = await supabase
+        .from('reminders')
+        .update({ status: 'expired' })
+        .eq('status', 'active')
+        .lt('expires_at', new Date().toISOString());
+
+      if (error) {
+        console.error('❌ Failed to cleanup expired reminders:', error);
+        return;
+      }
+
+      console.log('✅ Successfully cleaned up expired reminders:', data);
+
+    } catch (error) {
+      console.error('❌ Error cleaning up expired reminders:', error);
     }
   }
 }
