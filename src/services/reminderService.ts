@@ -188,26 +188,37 @@ export class ReminderService {
 
   // Stop the notification service
   static async stopNotificationService(): Promise<void> {
+    console.log('🔔 stopNotificationService called');
+    console.log('🔔 Current isRunning state:', this.isRunning);
+    console.log('🔔 Current user ID:', this.currentUserId);
+
     if (!this.isRunning) {
       console.log('🔔 Notification service is not running')
       return
     }
 
+    console.log('🔔 Stopping notification service for user:', this.currentUserId);
+
     // Send message to service worker to stop background notifications
     if (this.serviceWorkerRegistration?.active) {
+      console.log('🔔 Service worker is active, sending stop message...');
       this.serviceWorkerRegistration.active.postMessage({
         type: 'STOP_NOTIFICATION_SERVICE',
         userId: this.currentUserId
       });
       console.log('✅ Message sent to Service Worker to stop background notifications');
+
+      // Wait a bit for the service worker to process the message
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } else {
+      console.log('⚠️ Service Worker not available for stopping notifications');
     }
 
-
-
+    // Force stop the local service state
     this.isRunning = false
     this.currentUserId = null
     this.lastNotificationTime = 0
-    console.log('🔔 Notification service stopped')
+    console.log('🔔 Notification service stopped locally')
   }
 
   // Check if the notification service is running

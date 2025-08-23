@@ -120,6 +120,9 @@ self.addEventListener('message', (event) => {
     startBackgroundNotificationService(event.data.userId, event.data.intervalMinutes, event.data.durationHours);
     } else if (event.data?.type === 'STOP_NOTIFICATION_SERVICE') {
       console.log('⏹️ Service Worker: Processing STOP_NOTIFICATION_SERVICE message');
+      console.log('⏹️ Service Worker: User ID:', event.data.userId);
+      console.log('⏹️ Service Worker: Current notification intervals:', notificationIntervals.size);
+      console.log('⏹️ Service Worker: Active intervals:', Array.from(notificationIntervals.entries()));
       stopBackgroundNotificationService(event.data.userId);
       } else if (event.data?.type === 'SEND_NOTIFICATION_NOW') {
     console.log('📤 Service Worker: Processing SEND_NOTIFICATION_NOW message');
@@ -254,12 +257,67 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
 // Stop background notification service
 function stopBackgroundNotificationService(userId) {
   console.log('🔔 Service Worker: Stopping background notification service for user:', userId);
+  console.log('🔔 Service Worker: Current notification intervals before stop:', notificationIntervals.size);
+  console.log('🔔 Service Worker: Active intervals before stop:', Array.from(notificationIntervals.entries()));
 
+  // Clear any existing timeout for this user
   if (notificationIntervals.has(userId)) {
-    clearTimeout(notificationIntervals.get(userId));
+    const timeoutId = notificationIntervals.get(userId);
+    clearTimeout(timeoutId);
     notificationIntervals.delete(userId);
-    console.log('✅ Service Worker: Background notification service stopped for user:', userId);
+    console.log('✅ Service Worker: Cleared timeout with ID:', timeoutId, 'for user:', userId);
+  } else {
+    console.log('⚠️ Service Worker: No notification interval found for user:', userId);
   }
+
+  // Close any active notifications for this user
+  self.registration.getNotifications().then(notifications => {
+    console.log('🔔 Service Worker: Found', notifications.length, 'active notifications');
+    let closedCount = 0;
+    notifications.forEach(notification => {
+      if (notification.tag && notification.tag.includes(`background-${userId}`)) {
+        notification.close();
+        closedCount++;
+        console.log('✅ Service Worker: Closed notification with tag:', notification.tag);
+      }
+    });
+    console.log('🔔 Service Worker: Closed', closedCount, 'notifications for user:', userId);
+  });
+
+  console.log('🔔 Service Worker: Notification intervals after stop:', notificationIntervals.size);
+  console.log('✅ Service Worker: Background notification service completely stopped for user:', userId);
+}
+
+// Notify main app that a notification was sent
+function notifyMainAppOfNotificationSent(userId) {
+  console.log('📤 Service Worker: Attempting to notify main app of notification sent');
+
+  // Try to notify all clients (tabs) that a notification was sent
+  self.clients.matchAll().then(clients => {
+    console.log('📤 Service Worker: Found clients:', clients.length);
+
+    if (clients.length === 0) {
+      console.log('⚠️ Service Worker: No clients found to notify');
+      return;
+    }
+
+    clients.forEach(client => {
+      console.log('📤 Service Worker: Sending message to client:', client.url);
+      try {
+        // Send notification sent message
+        client.postMessage({
+          type: 'NOTIFICATION_SENT',
+          userId: userId,
+          timestamp: Date.now()
+        });
+        console.log('✅ Service Worker: NOTIFICATION_SENT message sent to client successfully');
+      } catch (error) {
+        console.error('❌ Service Worker: Failed to send message to client:', error);
+      }
+    });
+  }).catch(error => {
+    console.error('❌ Service Worker: Error finding clients:', error);
+  });
 }
 
 // Send a background notification
@@ -296,8 +354,8 @@ async function sendBackgroundNotification(userId, shouldInsertReminder = true) {
       notification = null;
     }
 
-    // Play notification sound using Web Audio API
-    playNotificationSound();
+    // System notification sound is handled automatically (silent: false)
+    console.log('🔊 System notification sound enabled');
 
     // Notify the main app that a notification was sent
     console.log('📤 Service Worker: About to notify main app of notification sent for user:', userId);

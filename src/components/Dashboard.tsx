@@ -258,6 +258,26 @@ const Dashboard: React.FC = () => {
           </button>
 
           <button
+            onClick={async () => {
+              console.log('🔍 Debugging stop notification service...');
+              console.log('🔍 Current service state:', ReminderService.isNotificationServiceRunning());
+              console.log('🔍 Current user ID:', ReminderService.getCurrentServiceUserId());
+
+              try {
+                // Force stop the service
+                await ReminderService.stopNotificationService();
+                console.log('✅ Force stop completed');
+                setNotificationServiceRunning(false);
+              } catch (error) {
+                console.error('❌ Force stop failed:', error);
+              }
+            }}
+            className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
+          >
+            🔍 Debug Stop Service
+          </button>
+
+          <button
             onClick={() => {
               if (user && notificationServiceRunning) {
                 console.log('🧪 Manually triggering notification...')
