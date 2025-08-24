@@ -399,7 +399,7 @@ async function sendBackgroundNotification(userId, shouldInsertReminder = true) {
 
     // Send message to insert reminder in database (only if shouldInsertReminder is true)
     if (shouldInsertReminder) {
-      console.log('📤 Service Worker: About to send INSERT_REMINDER message for user:', userId);
+      console.log('📤 AAA: Service Worker: About to send INSERT_REMINDER message for user:', self.clients);
       self.clients.matchAll().then(clients => {
         if (clients.length > 0) {
           // Only send to the most recently focused client to prevent duplicate insertions
@@ -426,7 +426,7 @@ async function sendBackgroundNotification(userId, shouldInsertReminder = true) {
             console.error('❌ AAA: Service Worker: Failed to send INSERT_REMINDER message to primary client:', error);
           }
         } else {
-          console.log('⚠️ AAA: Service Worker: No clients found for INSERT_REMINDER message');
+          console.error('⚠️ AAA: Service Worker: No clients found for INSERT_REMINDER message');
         }
       }).catch(error => {
         console.error('❌ AAA: Service Worker: Error finding clients for INSERT_REMINDER message:', error);

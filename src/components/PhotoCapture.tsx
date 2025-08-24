@@ -208,8 +208,23 @@ const PhotoCapture: React.FC = () => {
     // Start camera
     startCamera()
 
+    // Handle page visibility changes (when user navigates away and comes back)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('📱 Page became visible, restarting camera...')
+        // Small delay to ensure the page is fully loaded
+        setTimeout(() => startCamera(), 100)
+      } else {
+        console.log('📱 Page became hidden, stopping camera...')
+        stopCamera()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     return () => {
       stopCamera()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [reminderId, user, navigate])
 
@@ -233,6 +248,16 @@ const PhotoCapture: React.FC = () => {
 
   const startCamera = async () => {
     try {
+      // First, ensure any existing stream is properly stopped
+      if (streamRef.current) {
+        stopCamera()
+      }
+
+      // Clear any existing video source
+      if (videoRef.current) {
+        videoRef.current.srcObject = null
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' } // Use back camera on mobile
       })
@@ -240,6 +265,7 @@ const PhotoCapture: React.FC = () => {
       if (videoRef.current) {
         videoRef.current.srcObject = stream
         streamRef.current = stream
+        console.log('📷 Camera started successfully')
       }
     } catch (err) {
       setError('Unable to access camera. Please check permissions.')
@@ -252,6 +278,13 @@ const PhotoCapture: React.FC = () => {
       streamRef.current.getTracks().forEach(track => track.stop())
       streamRef.current = null
     }
+
+    // Also clear the video element's source
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+
+    console.log('📷 Camera stopped and cleaned up')
   }
 
   const capturePhoto = () => {

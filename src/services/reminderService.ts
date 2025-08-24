@@ -103,7 +103,7 @@ export class ReminderService {
       }
     } else if (event.data.type === 'INSERT_REMINDER') {
       // Handle insert reminder message from service worker
-      console.log('📝 AAA:Main app: Received INSERT_REMINDER message from Service Worker');
+      console.log('📝 AAA: Main app: Received INSERT_REMINDER message from Service Worker');
       console.log('📝 Insert reminder payload:', event.data);
 
       // Insert reminder into database
