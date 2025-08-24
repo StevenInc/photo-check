@@ -294,7 +294,9 @@ const PhotoCapture: React.FC = () => {
 
   const retakePhoto = () => {
     setCapturedImage(null)
-    setIsCapturing(true)
+    setIsCapturing(false)
+    // Restart the camera when retaking photo
+    startCamera()
   }
 
   const uploadPhoto = async () => {
