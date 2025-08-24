@@ -111,6 +111,65 @@ const PhotoCapture: React.FC = () => {
     await getLatestReminderAndSetTimer()
   }
 
+  // Function to update reminder statuses after photo upload
+  const updateReminderStatuses = async (userId: string) => {
+    try {
+      console.log('🔄 Updating reminder statuses for user:', userId)
+
+      // Get all active reminders for the user, ordered by creation date (newest first)
+      const { data: activeReminders, error: fetchError } = await supabase
+        .from('reminders')
+        .select('id, created_at')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+
+      if (fetchError) {
+        console.error('❌ Error fetching active reminders:', fetchError)
+        return
+      }
+
+      if (!activeReminders || activeReminders.length === 0) {
+        console.log('📝 No active reminders found to update')
+        return
+      }
+
+      console.log(`📝 Found ${activeReminders.length} active reminders`)
+
+      // Mark the most recent reminder as completed
+      const mostRecentReminder = activeReminders[0]
+      const { error: completeError } = await supabase
+        .from('reminders')
+        .update({ status: 'completed' })
+        .eq('id', mostRecentReminder.id)
+
+      if (completeError) {
+        console.error('❌ Error completing most recent reminder:', completeError)
+      } else {
+        console.log('✅ Marked most recent reminder as completed:', mostRecentReminder.id)
+      }
+
+      // Mark all other active reminders as expired
+      if (activeReminders.length > 1) {
+        const otherReminderIds = activeReminders.slice(1).map(r => r.id)
+        const { error: expireError } = await supabase
+          .from('reminders')
+          .update({ status: 'expired' })
+          .in('id', otherReminderIds)
+
+        if (expireError) {
+          console.error('❌ Error expiring other reminders:', expireError)
+        } else {
+          console.log(`✅ Marked ${otherReminderIds.length} other reminders as expired`)
+        }
+      }
+
+      console.log('✅ Reminder status updates completed successfully')
+    } catch (error) {
+      console.error('❌ Error updating reminder statuses:', error)
+    }
+  }
+
   // Define handleTimeExpired before using it in useEffect
   const handleTimeExpired = useCallback(() => {
     if (reminderId && !reminderId.startsWith('test-')) {
@@ -335,12 +394,18 @@ const PhotoCapture: React.FC = () => {
         console.log('🔄 Completing reminder...')
         await ReminderService.completeReminder(reminderId, urlData.publicUrl, user.id)
         console.log('✅ Photo uploaded and reminder completed successfully!')
+
+        // Update reminder statuses: mark most recent as completed, others as expired
+        await updateReminderStatuses(user.id)
       } else if (reminderId && reminderId.startsWith('test-')) {
         // For test reminders, just show success message
         console.log('🧪 Test photo uploaded successfully! (No database update)')
       } else {
         // For background notifications (no reminder ID), just show success message
         console.log('🔔 Background notification photo uploaded successfully! (No database update)')
+
+        // Update reminder statuses for background notifications too
+        await updateReminderStatuses(user.id)
       }
 
       // Show success message before navigation
