@@ -513,7 +513,7 @@ const PhotoCapture: React.FC = () => {
       {/* Header with timer */}
       <div className="text-center mb-6">
         <h1 className="text-2xl font-bold mb-2">
-          {reminderId ? '📸 Take Your Photo!' : '📸 Quick Photo Capture!'}
+          {reminderId ? '📸 Take Your Photo!' : '📸 Diaper Check!'}
         </h1>
         {isLoadingTimer ? (
           <div className="text-4xl font-mono font-bold text-blue-500">
@@ -526,7 +526,7 @@ const PhotoCapture: React.FC = () => {
           </div>
         )}
         <p className="text-gray-400">
-          {reminderId ? 'Time remaining to capture and upload' : 'Quick photo capture mode'}
+          Take a photo of your diaper for your Mommy.
         </p>
         {!isLoadingTimer && timeLeft === 0 && !isExpired && (
           <p className="text-red-400 text-sm mt-1">
@@ -545,15 +545,7 @@ const PhotoCapture: React.FC = () => {
             </button>
           </div>
         )}
-        {/* Debug refresh button - only show in development */}
-        {import.meta.env.DEV && (
-          <button
-            onClick={refreshTimer}
-            className="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
-          >
-            🔄 Refresh Timer
-          </button>
-        )}
+
       </div>
 
       {/* Camera view */}
