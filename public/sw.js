@@ -11,6 +11,8 @@ const urlsToCache = [
 let notificationIntervals = new Map();
 let heartbeatInterval = null;
 
+
+
 // Keep service worker alive with heartbeat
 function startHeartbeat() {
   if (heartbeatInterval) {
@@ -36,6 +38,8 @@ function startHeartbeat() {
         console.error(`  User ${userId}: Timeout ${timeoutId} is invalid:`, error);
       }
     }
+
+
   }, 10000); // Every 10 seconds for more frequent checking
 
   console.log('💓 Service Worker: Heartbeat started');
@@ -124,10 +128,12 @@ self.addEventListener('message', (event) => {
       console.log('⏹️ Service Worker: Current notification intervals:', notificationIntervals.size);
       console.log('⏹️ Service Worker: Active intervals:', Array.from(notificationIntervals.entries()));
       stopBackgroundNotificationService(event.data.userId);
-      } else if (event.data?.type === 'SEND_NOTIFICATION_NOW') {
-    console.log('📤 Service Worker: Processing SEND_NOTIFICATION_NOW message');
-    console.log('📤 Service Worker: Testing immediate notification...');
-    sendBackgroundNotification(event.data.userId, true); // true = insert into database for manual notifications
+
+    } else if (event.data?.type === 'SEND_NOTIFICATION_NOW') {
+      console.log('📤 Service Worker: Processing SEND_NOTIFICATION_NOW message');
+      console.log('📤 Service Worker: Testing immediate notification...');
+
+      sendBackgroundNotification(event.data.userId, true); // true = insert into database for manual notifications
     } else if (event.data?.type === 'GET_SERVICE_STATUS') {
       console.log('📊 Service Worker: Processing GET_SERVICE_STATUS message');
       // Send back the current status
@@ -186,6 +192,23 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
   console.log('📤 Service Worker: Sending immediate notification...');
   sendBackgroundNotification(userId, false); // false = don't insert into database
 
+  // Notify main app that service started and will send first scheduled notification
+  self.clients.matchAll().then(clients => {
+    if (clients.length > 0) {
+      const targetClient = clients[0];
+      try {
+        targetClient.postMessage({
+          type: 'NOTIFICATION_SERVICE_STARTED',
+          userId: userId,
+          message: 'Service started - first scheduled notification will be sent in 30-60 seconds'
+        });
+        console.log('📤 Service Worker: Sent NOTIFICATION_SERVICE_STARTED message to main app');
+      } catch (error) {
+        console.error('❌ Service Worker: Failed to send NOTIFICATION_SERVICE_STARTED message:', error);
+      }
+    }
+  });
+
   // Function to schedule next random notification
   const scheduleNextNotification = () => {
       // Check if we've exceeded the duration (1 hour for debugging)
@@ -202,19 +225,21 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
       nextIntervalMs = intervalMinutes * 60 * 1000;
       console.log('🔔 Service Worker: Using main app interval:', intervalMinutes, 'minutes (', nextIntervalMs, 'ms)');
     } else {
-      // Generate random interval between 6-30 seconds for debugging
-      const randomSeconds = Math.random() * 24 + 6; // 6 to 30 seconds
+      // Generate random interval range between 30-60 seconds for debugging
+      const randomSeconds = Math.random() * 30 + 30; // 30 to 60 seconds
       nextIntervalMs = randomSeconds * 1000;
-      console.log('🔔 Service Worker: Using random interval:', randomSeconds.toFixed(1), 'seconds (', nextIntervalMs, 'ms) - DEBUG MODE: 6-30 sec range');
+      console.log('🔔 Service Worker: Using random interval:', randomSeconds.toFixed(1), 'seconds (', nextIntervalMs, 'ms) - DEBUG MODE: 30-60 sec range');
     }
 
     // Schedule the notification
     console.log('⏰ Service Worker: Scheduling notification for user:', userId, 'in', (nextIntervalMs / 1000).toFixed(1), 'seconds');
     console.log('⏰ Service Worker: Setting timeout for', nextIntervalMs, 'milliseconds...');
 
-    const timeoutId = setTimeout(() => {
+        const timeoutId = setTimeout(() => {
       console.log('⏰ Service Worker: Timeout fired for user:', userId, '- sending notification');
       console.log('⏰ Service Worker: Current time when timeout fired:', new Date().toLocaleString());
+
+      //SEND NOTIFICATION HERE:
       sendBackgroundNotification(userId, true); // true = insert into database for scheduled notifications
       // Schedule the next one recursively
       console.log('🔄 Service Worker: Scheduling next notification for user:', userId);
@@ -224,13 +249,33 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
       } catch (error) {
         console.error('❌ Service Worker: Failed to schedule next notification:', error);
       }
-    }, nextIntervalMs);
+    }, nextIntervalMs); //setTimeout
 
     // Store the timeout ID
     notificationIntervals.set(userId, timeoutId);
     console.log('⏰ Service Worker: Timeout stored with ID:', timeoutId, 'for user:', userId);
     console.log('⏰ Service Worker: Current time:', new Date().toLocaleString());
     console.log('⏰ Service Worker: Expected notification at:', new Date(Date.now() + nextIntervalMs).toLocaleString());
+
+    // Notify main app of next notification time
+    const nextNotificationTime = Date.now() + nextIntervalMs;
+    self.clients.matchAll().then(clients => {
+      if (clients.length > 0) {
+        // Send to the first client only
+        const targetClient = clients[0];
+        try {
+          targetClient.postMessage({
+            type: 'NEXT_NOTIFICATION_TIME',
+            userId: userId,
+            nextNotificationTime: nextNotificationTime,
+            intervalSeconds: randomSeconds
+          });
+          console.log('📤 Service Worker: Sent NEXT_NOTIFICATION_TIME message to main app:', new Date(nextNotificationTime).toLocaleString());
+        } catch (error) {
+          console.error('❌ Service Worker: Failed to send NEXT_NOTIFICATION_TIME message:', error);
+        }
+      }
+    });
   };
 
   // Start the recursive scheduling loop
@@ -239,17 +284,7 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
     scheduleNextNotification();
     console.log('✅ Service Worker: Recursive scheduling loop started successfully');
   } catch (error) {
-    console.error('❌ Service Worker: Failed to start recursive scheduling loop:', error);
-    console.log('🔄 Service Worker: Falling back to setInterval approach...');
-
-    // Fallback: use setInterval instead of recursive setTimeout
-    const intervalId = setInterval(() => {
-      console.log('⏰ Service Worker: Interval fired for user:', userId, '- sending notification');
-      sendBackgroundNotification(userId, true); // true = insert into database for fallback notifications
-    }, 15000); // 15 seconds for debugging (fallback)
-
-    notificationIntervals.set(userId, intervalId);
-    console.log('✅ Service Worker: Fallback setInterval started with ID:', intervalId);
+    console.error('❌❌❌ Service Worker: Failed to start recursive scheduling loop:', error);
   }
   console.log('✅ Service Worker: Background notification service started with 6-30 second intervals for 1 hour (DEBUG MODE)');
 }
@@ -260,7 +295,7 @@ function stopBackgroundNotificationService(userId) {
   console.log('🔔 Service Worker: Current notification intervals before stop:', notificationIntervals.size);
   console.log('🔔 Service Worker: Active intervals before stop:', Array.from(notificationIntervals.entries()));
 
-  // Clear any existing timeout for this user
+    // Clear any existing timeout for this user
   if (notificationIntervals.has(userId)) {
     const timeoutId = notificationIntervals.get(userId);
     clearTimeout(timeoutId);
@@ -322,6 +357,7 @@ function notifyMainAppOfNotificationSent(userId) {
 
 // Send a background notification
 async function sendBackgroundNotification(userId, shouldInsertReminder = true) {
+  console.log('🔔🔔🔔 AAA: Service Worker: Sending background notification for user:', userId, 'shouldInsertReminder:', shouldInsertReminder);
   try {
     console.log('🔔 Service Worker: Sending background notification for user:', userId, 'shouldInsertReminder:', shouldInsertReminder);
 
@@ -366,26 +402,37 @@ async function sendBackgroundNotification(userId, shouldInsertReminder = true) {
       console.log('📤 Service Worker: About to send INSERT_REMINDER message for user:', userId);
       self.clients.matchAll().then(clients => {
         if (clients.length > 0) {
-          clients.forEach(client => {
-            try {
-              client.postMessage({
-                type: 'INSERT_REMINDER',
-                userId: userId,
-                timestamp: Date.now()
-              });
-              console.log('✅ Service Worker: INSERT_REMINDER message sent to client:', client.url);
-            } catch (error) {
-              console.error('❌ Service Worker: Failed to send INSERT_REMINDER message to client:', error);
+          // Only send to the most recently focused client to prevent duplicate insertions
+          // Sort by focus time and only send to the most recent one
+          const sortedClients = clients.sort((a, b) => {
+            // If focusTime is available, use it; otherwise fall back to URL sorting
+            if (a.focusTime && b.focusTime) {
+              return b.focusTime - a.focusTime;
             }
+            // Fallback: prefer the first client (usually the main tab)
+            return 0;
           });
+
+          // Only send to the first (most recently focused) client
+          const targetClient = sortedClients[0];
+          try {
+            targetClient.postMessage({
+              type: 'INSERT_REMINDER',
+              userId: userId,
+              timestamp: Date.now()
+            });
+            console.log('✅ AAA: Service Worker: INSERT_REMINDER message sent to primary client:', targetClient.url);
+          } catch (error) {
+            console.error('❌ AAA: Service Worker: Failed to send INSERT_REMINDER message to primary client:', error);
+          }
         } else {
-          console.log('⚠️ Service Worker: No clients found for INSERT_REMINDER message');
+          console.log('⚠️ AAA: Service Worker: No clients found for INSERT_REMINDER message');
         }
       }).catch(error => {
-        console.error('❌ Service Worker: Error finding clients for INSERT_REMINDER message:', error);
+        console.error('❌ AAA: Service Worker: Error finding clients for INSERT_REMINDER message:', error);
       });
     } else {
-      console.log('📤 Service Worker: Skipping database insertion for this notification (shouldInsertReminder = false)');
+      console.error('📤 AAA: Service Worker: Skipping database insertion for this notification (shouldInsertReminder = false)');
     }
 
     // Auto-close after 8 seconds (only if notification was created successfully)

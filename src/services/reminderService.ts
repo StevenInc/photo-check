@@ -5,9 +5,12 @@ export class ReminderService {
   private static isRunning = false
   private static currentUserId: string | null = null
   private static lastNotificationTime: number = 0
+  private static nextNotificationTime: number = 0
   private static serviceWorkerRegistration: ServiceWorkerRegistration | null = null
   private static audioContext: AudioContext | null = null
   private static messageListenerSetUp = false
+
+
 
     // Initialize service worker registration
   private static async getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
@@ -100,11 +103,22 @@ export class ReminderService {
       }
     } else if (event.data.type === 'INSERT_REMINDER') {
       // Handle insert reminder message from service worker
-      console.log('📝 Main app: Received INSERT_REMINDER message from Service Worker');
+      console.log('📝 AAA:Main app: Received INSERT_REMINDER message from Service Worker');
       console.log('📝 Insert reminder payload:', event.data);
 
       // Insert reminder into database
       this.insertReminderFromNotification(event.data.userId, event.data.timestamp);
+
+
+    } else if (event.data.type === 'NEXT_NOTIFICATION_TIME') {
+      // Handle next notification time update from service worker
+      console.log('⏰ Main app: Received NEXT_NOTIFICATION_TIME message from Service Worker');
+      console.log('⏰ Next notification scheduled for:', new Date(event.data.nextNotificationTime).toLocaleString());
+      this.nextNotificationTime = event.data.nextNotificationTime;
+    } else if (event.data.type === 'NOTIFICATION_SERVICE_STARTED') {
+      // Handle notification service started message from service worker
+      console.log('🚀 Main app: Received NOTIFICATION_SERVICE_STARTED message from Service Worker');
+      console.log('🚀 Service message:', event.data.message);
     } else {
       console.log('⚠️ Main app: Received unknown message type:', event.data.type);
     }
@@ -199,6 +213,9 @@ export class ReminderService {
 
     console.log('🔔 Stopping notification service for user:', this.currentUserId);
 
+    // Reset next notification time
+    this.nextNotificationTime = 0;
+
     // Send message to service worker to stop background notifications
     if (this.serviceWorkerRegistration?.active) {
       console.log('🔔 Service worker is active, sending stop message...');
@@ -233,21 +250,25 @@ export class ReminderService {
 
       // Get time until next notification
   static getTimeUntilNextNotification(): number | null {
-    // Always return a time value if we have a last notification time, regardless of isRunning
-    // This allows the countdown to work even during testing
-
-    // If no last notification time, assume next notification is in 2-4 minutes (average 3 min)
-    if (this.lastNotificationTime === 0) {
-      return 3 * 60 * 1000; // 3 minutes (average of 2-4 min range)
+    // If we have the actual next notification time from the service worker, use that
+    if (this.nextNotificationTime > 0) {
+      const timeUntil = this.nextNotificationTime - Date.now();
+      // If the time has passed, return 0 (notification should appear soon)
+      if (timeUntil <= 0) {
+        return 0;
+      }
+      return timeUntil;
     }
 
-    // Calculate actual time since last notification
-    const timeSinceLast = Date.now() - this.lastNotificationTime
+    // Fallback: if no next notification time available, estimate based on last notification
+    if (this.lastNotificationTime === 0) {
+      return 45 * 1000; // 45 seconds (average of 30-60 second range)
+    }
 
-    // Since we're now using random 2-4 minute intervals, we can't predict exactly when the next one will be
-    // Return a reasonable estimate based on the average interval
-    const averageInterval = 3 * 60 * 1000; // 3 minutes average
-    const timeUntilNext = averageInterval - timeSinceLast
+    // Calculate time since last notification and estimate next one
+    const timeSinceLast = Date.now() - this.lastNotificationTime;
+    const averageInterval = 45 * 1000; // 45 seconds average (30-60 second range)
+    const timeUntilNext = averageInterval - timeSinceLast;
 
     // If we're past due, return 0 (notification should appear soon)
     if (timeUntilNext <= 0) {
@@ -358,16 +379,20 @@ export class ReminderService {
 
       // Send a notification immediately using the same logic as testNotification
   static async sendNotification(userId: string): Promise<void> {
-            //add audio notification
-            this.playWebAudioBeep();
+    //add audio notification
+    this.playWebAudioBeep();
+
     // Try to use service worker first, fallback to direct notification
     const registration = await this.getServiceWorkerRegistration();
     if (registration?.active) {
+      console.log('✅ Service Worker available, sending SEND_NOTIFICATION_NOW message');
       registration.active.postMessage({
         type: 'SEND_NOTIFICATION_NOW',
         userId: userId
       });
       console.log('✅ Message sent to Service Worker to send notification now');
+      // IMPORTANT: Return here to prevent duplicate reminder insertion
+      // The service worker will handle the notification and send INSERT_REMINDER message
       return;
     }
 
@@ -430,8 +455,6 @@ export class ReminderService {
             console.log('🔊 All audio methods failed:', fallbackError)
           }
         }
-
-
 
         // Create the notification with the real reminder ID
         const notification = new Notification('📸 Photo Check Reminder!', {
@@ -764,48 +787,14 @@ export class ReminderService {
     }
   }
 
-        // Insert a reminder into the database when a notification is sent
+                // Insert a reminder into the database when a notification is sent
   private static async insertReminderFromNotification(userId: string, timestamp: number): Promise<void> {
+
     try {
       console.log('📝 Inserting reminder into database for user:', userId, 'at timestamp:', timestamp);
       console.log('📝 User ID type:', typeof userId, 'Value:', userId);
       console.log('📝 Timestamp type:', typeof timestamp, 'Value:', timestamp);
 
-      // Use a much shorter time window to prevent only truly rapid duplicates
-      // Check if there's already an active reminder created very recently (within 10 seconds)
-      console.log('📝 Checking for very recent reminders to prevent rapid duplicates...');
-      const { data: recentReminders, error: checkError } = await supabase
-        .from('reminders')
-        .select('id, status, created_at')
-        .eq('user_id', userId)
-        .eq('status', 'active')
-        .gte('created_at', new Date(timestamp - 10000).toISOString()) // Only check reminders created in last 10 seconds
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (checkError) {
-        console.error('❌ Failed to check recent reminders:', checkError);
-        return;
-      }
-
-      if (recentReminders && recentReminders.length > 0) {
-        const recentReminder = recentReminders[0];
-        const timeSinceLastReminder = timestamp - new Date(recentReminder.created_at).getTime();
-        const timeSinceLastReminderSeconds = timeSinceLastReminder / 1000;
-
-        console.log('📝 Found very recent reminder:', recentReminder.id);
-        console.log('📝 Time since last reminder:', timeSinceLastReminderSeconds.toFixed(1), 'seconds');
-
-        // If the last reminder was created less than 10 seconds ago, skip insertion
-        if (timeSinceLastReminderSeconds < 10) {
-          console.log('📝 Skipping insertion - last reminder was created less than 10 seconds ago (rapid duplicate)');
-          return;
-        }
-
-        console.log('📝 Proceeding with insertion - sufficient time has passed since last reminder');
-      } else {
-        console.log('📝 No very recent reminders found, proceeding with insertion');
-      }
 
       // Calculate scheduled_at and expires_at times
       const scheduledAt = new Date(timestamp);
@@ -823,8 +812,6 @@ export class ReminderService {
       };
       console.log('📝 Data to insert:', insertData);
 
-      // Insert the reminder into the database
-      console.log('📝 About to call supabase.insert...');
       const { data, error } = await supabase
         .from('reminders')
         .insert(insertData)
@@ -832,12 +819,12 @@ export class ReminderService {
         .single();
 
       if (error) {
-        console.error('❌ Failed to insert reminder into database:', error);
-        console.error('❌ Error details:', JSON.stringify(error, null, 2));
+        console.error('❌❌❌ Failed to insert reminder into database:', error);
+        console.error('❌❌❌ Error details:', JSON.stringify(error, null, 2));
         return;
       }
 
-      console.log('✅ Successfully inserted reminder into database:', data);
+      console.log('✅ AAA: Successfully inserted reminder into database:', data);
 
     } catch (error) {
       console.error('❌ Error inserting reminder into database:', error);
@@ -872,5 +859,10 @@ export class ReminderService {
     } catch (error) {
       console.error('❌ Error cleaning up expired reminders:', error);
     }
+  }
+
+    // Get next notification time for debugging
+  static getNextNotificationTime(): number {
+    return this.nextNotificationTime;
   }
 }
