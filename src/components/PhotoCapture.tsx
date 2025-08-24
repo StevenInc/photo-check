@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react'
+import React, { useRef, useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ReminderService } from '../services/reminderService'
 import { supabase } from '../lib/supabase'
@@ -18,12 +18,122 @@ const PhotoCapture: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [captureCountdown, setCaptureCountdown] = useState(0) // 3-second countdown
+  const [isLoadingTimer, setIsLoadingTimer] = useState(true)
+  const [isExpired, setIsExpired] = useState(false)
+
+  // Function to get the latest reminder and calculate time remaining
+  const getLatestReminderAndSetTimer = async () => {
+    if (!user) return
+
+    try {
+      setIsLoadingTimer(true)
+      console.log('🔄 Starting to fetch latest reminder...')
+
+      // Check if Supabase is available
+      if (!supabase) {
+        console.error('❌ Supabase client not available')
+        setTimeLeft(300)
+        setIsLoadingTimer(false)
+        return
+      }
+
+      // Query the reminders table for the latest entry for this user
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Database query timeout')), 10000)
+      )
+
+      const queryPromise = supabase
+        .from('reminders')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      const { data: reminders, error } = await Promise.race([queryPromise, timeoutPromise])
+
+      console.log('📊 Supabase response:', { data: reminders, error })
+
+      if (error) {
+        console.error('Error fetching latest reminder:', error)
+        // Fallback to default 5 minutes if no reminder found
+        setTimeLeft(300)
+        setIsLoadingTimer(false)
+        return
+      }
+
+      if (reminders) {
+        console.log('📅 Latest reminder found:', reminders)
+
+        // Calculate time remaining based on expires_at
+        const now = new Date()
+        const expiresAt = new Date(reminders.expires_at)
+        const timeRemainingMs = expiresAt.getTime() - now.getTime()
+
+        if (timeRemainingMs > 0) {
+          const timeRemainingSeconds = Math.floor(timeRemainingMs / 1000)
+          console.log(`⏰ Time remaining: ${timeRemainingSeconds} seconds`)
+
+          // Check if time is greater than 5 minutes (300 seconds)
+          if (timeRemainingSeconds > 300) {
+            console.log('⏰ Time is greater than 5 minutes, showing expired message')
+            setTimeLeft(0)
+            setError('⏰ This reminder has expired. The 5-minute window has passed.')
+            setIsExpired(true)
+          } else {
+            setTimeLeft(timeRemainingSeconds)
+            setIsExpired(false)
+          }
+        } else {
+          console.log('⏰ Reminder has expired, setting timer to 0')
+          setTimeLeft(0)
+          setError('⏰ This reminder has expired. The 5-minute window has passed.')
+          setIsExpired(true)
+        }
+      } else {
+        console.log('📅 No reminders found, using default 5 minutes')
+        setTimeLeft(300)
+      }
+    } catch (err) {
+      console.error('Error in getLatestReminderAndSetTimer:', err)
+      // Fallback to default 5 minutes
+      setTimeLeft(300)
+    } finally {
+      console.log('✅ Timer setup complete, setting isLoadingTimer to false')
+      setIsLoadingTimer(false)
+    }
+  }
+
+  // Function to refresh the timer (useful for debugging or manual refresh)
+  const refreshTimer = async () => {
+    console.log('🔄 Refreshing timer...')
+    await getLatestReminderAndSetTimer()
+  }
+
+  // Define handleTimeExpired before using it in useEffect
+  const handleTimeExpired = useCallback(() => {
+    if (reminderId && !reminderId.startsWith('test-')) {
+      ReminderService.expireReminder(reminderId)
+    }
+
+    // Show warning message instead of immediately navigating away
+    setError('⏰ Time has expired! Please take your photo quickly or you will be redirected.')
+
+    // Give user 10 seconds to take photo before redirecting
+    setTimeout(() => {
+      navigate('/expired')
+    }, 10000)
+  }, [reminderId, navigate])
 
   useEffect(() => {
     if (!user) {
       navigate('/')
       return
     }
+
+    // Get the latest reminder and set the timer
+    getLatestReminderAndSetTimer()
 
     // Handle different reminder ID scenarios
     if (reminderId) {
@@ -36,9 +146,18 @@ const PhotoCapture: React.FC = () => {
       console.log('📸 No reminder ID provided, using default capture mode for background notification');
     }
 
+    // Start camera
+    startCamera()
 
+    return () => {
+      stopCamera()
+    }
+  }, [reminderId, user, navigate])
 
-    // Start countdown timer
+  // Separate useEffect for the countdown timer
+  useEffect(() => {
+    if (isLoadingTimer) return
+
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -50,14 +169,8 @@ const PhotoCapture: React.FC = () => {
       })
     }, 1000)
 
-    // Start camera
-    startCamera()
-
-    return () => {
-      clearInterval(timer)
-      stopCamera()
-    }
-  }, [reminderId, user, navigate])
+    return () => clearInterval(timer)
+  }, [isLoadingTimer, handleTimeExpired])
 
   const startCamera = async () => {
     try {
@@ -261,13 +374,6 @@ const PhotoCapture: React.FC = () => {
     }
   }
 
-  const handleTimeExpired = () => {
-    if (reminderId && !reminderId.startsWith('test-')) {
-      ReminderService.expireReminder(reminderId)
-    }
-    navigate('/expired')
-  }
-
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
@@ -278,23 +384,80 @@ const PhotoCapture: React.FC = () => {
     return <div>Loading...</div>
   }
 
-  return (
-    <div className="min-h-screen bg-gray-900 text-white p-4">
+  // Add error boundary logging
+  console.log('PhotoCapture render state:', {
+    user: !!user,
+    reminderId,
+    timeLeft,
+    isLoadingTimer,
+    capturedImage: !!capturedImage,
+    error
+  })
+
+  // Simple fallback to test if component is rendering
+  if (isLoadingTimer) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white p-4 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+          <div className="text-xl">Setting up timer...</div>
+          <div className="text-sm text-gray-400 mt-2">Please wait while we calculate your time remaining</div>
+        </div>
+      </div>
+    )
+  }
+
+  try {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white p-4">
       {/* Header with timer */}
       <div className="text-center mb-6">
         <h1 className="text-2xl font-bold mb-2">
           {reminderId ? '📸 Take Your Photo!' : '📸 Quick Photo Capture!'}
         </h1>
-        <div className="text-4xl font-mono font-bold text-red-500">
-          {formatTime(timeLeft)}
-        </div>
+        {isLoadingTimer ? (
+          <div className="text-4xl font-mono font-bold text-blue-500">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-2"></div>
+            <div>Calculating...</div>
+          </div>
+        ) : (
+          <div className="text-4xl font-mono font-bold text-red-500">
+            {formatTime(timeLeft)}
+          </div>
+        )}
         <p className="text-gray-400">
           {reminderId ? 'Time remaining to capture and upload' : 'Quick photo capture mode'}
         </p>
+        {!isLoadingTimer && timeLeft === 0 && !isExpired && (
+          <p className="text-red-400 text-sm mt-1">
+            ⚠️ Time has expired! Please take your photo quickly.
+          </p>
+        )}
+        {isExpired && (
+          <div className="mt-4 p-4 bg-red-600 text-white rounded-lg text-center">
+            <h2 className="text-xl font-bold mb-2">⏰ Reminder Expired</h2>
+            <p className="mb-3">This reminder has expired. The 5-minute window has passed.</p>
+            <button
+              onClick={() => navigate('/')}
+              className="bg-white text-red-600 hover:bg-gray-100 font-bold py-2 px-4 rounded transition-colors"
+            >
+              Return to Dashboard
+            </button>
+          </div>
+        )}
+        {/* Debug refresh button - only show in development */}
+        {import.meta.env.DEV && (
+          <button
+            onClick={refreshTimer}
+            className="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
+          >
+            🔄 Refresh Timer
+          </button>
+        )}
       </div>
 
       {/* Camera view */}
-      {!capturedImage && (
+      {!capturedImage && !isExpired && (
         <div className="relative bg-black rounded-lg overflow-hidden mb-6">
           <video
             ref={videoRef}
@@ -347,7 +510,8 @@ const PhotoCapture: React.FC = () => {
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Action buttons */}
-      <div className="space-y-4">
+      {!isExpired && (
+        <div className="space-y-4">
         {!capturedImage ? (
           <button
             onClick={capturePhoto}
@@ -376,7 +540,8 @@ const PhotoCapture: React.FC = () => {
             </button>
           </>
         )}
-      </div>
+        </div>
+      )}
 
       {/* Error message */}
       {error && (
@@ -392,8 +557,28 @@ const PhotoCapture: React.FC = () => {
           <p className="mt-2 text-gray-400">Uploading photo...</p>
         </div>
       )}
-    </div>
-  )
+      </div>
+    )
+  } catch (error) {
+    console.error('Error rendering PhotoCapture:', error)
+    return (
+      <div className="min-h-screen bg-red-900 text-white p-4 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">⚠️ Error Loading Photo Capture</h1>
+          <p className="mb-4">Something went wrong while loading the photo capture page.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+          >
+            🔄 Reload Page
+          </button>
+          <pre className="mt-4 text-xs bg-black p-2 rounded overflow-auto">
+            {error instanceof Error ? error.message : String(error)}
+          </pre>
+        </div>
+      </div>
+    )
+  }
 }
 
 export default PhotoCapture
