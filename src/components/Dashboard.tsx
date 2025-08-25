@@ -167,7 +167,7 @@ const Dashboard: React.FC = () => {
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">📸 Photo Check</h1>
+            <h1 className="text-2xl font-bold text-gray-900">📸 Diaper Check.AI</h1>
             <p className="text-gray-600">Welcome back, {user.email}</p>
           </div>
           <button
@@ -209,14 +209,14 @@ const Dashboard: React.FC = () => {
           <div className="flex items-center">
             <div className={notificationServiceRunning ? 'text-green-800' : 'text-gray-800'}>
                             <p className="font-medium">
-                {notificationServiceRunning ? '🔔 Notification Service Running' : '⏸️ Notification Service Stopped'}
+                {notificationServiceRunning ? '🔔 Diaper Check Service Running' : '⏸️ Diaper Check Service Stopped'}
               </p>
               <p className={`text-sm mt-1 ${
                 notificationServiceRunning ? 'text-green-700' : 'text-gray-700'
               }`}>
                 {notificationServiceRunning
-                  ? `Next notification in ${nextNotificationTime ? formatTime(nextNotificationTime / 1000) : '0:30'}`
-                  : `Click "Start Notification Service" to begin receiving automatic reminders every ${ReminderService.minMinutesRange}-${ReminderService.maxMinutesRange} minutes for ${ReminderService.durationHours} hours`
+                  ? `Next diaper check in ${nextNotificationTime ? formatTime(nextNotificationTime / 1000) : '0:30'}`
+                  : `Click "Start Diaper Check Service" to begin receiving automatic reminders every ${ReminderService.minMinutesRange}-${ReminderService.maxMinutesRange} minutes for ${ReminderService.durationHours} hours`
                 }
               </p>
               {notificationServiceRunning && (
@@ -232,44 +232,23 @@ const Dashboard: React.FC = () => {
 
       {/* Quick Actions */}
       <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <button
             onClick={startNotificationService}
             disabled={notificationPermission !== 'granted'}
             className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
-            🚀 Start/Restart Notification Service (Every {ReminderService.minMinutesRange}-{ReminderService.maxMinutesRange} min for {ReminderService.durationHours} hour)
+            🚀 Start/Restart Diaper Check Service (Every {ReminderService.minMinutesRange}-{ReminderService.maxMinutesRange} min for {ReminderService.durationHours} hour)
           </button>
 
           <button
             onClick={stopNotificationService}
             className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
-            ⏹️ Stop Notification Service
+            ⏹️ Stop Diaper Check Service
           </button>
 
-          <button
-            onClick={async () => {
-              console.log('🔍 Debugging stop notification service...');
-              console.log('🔍 Current service state:', ReminderService.isNotificationServiceRunning());
-              console.log('🔍 Current user ID:', ReminderService.getCurrentServiceUserId());
-
-              try {
-                // Force stop the service
-                await ReminderService.stopNotificationService();
-                console.log('✅ Force stop completed');
-                setNotificationServiceRunning(false);
-              } catch (error) {
-                console.error('❌ Force stop failed:', error);
-              }
-            }}
-            className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
-          >
-            🔍 Debug Stop Service
-          </button>
-
-          <button
+          {/* <button
             onClick={() => {
               if (user && notificationServiceRunning) {
                 console.log('🧪 Manually triggering notification...')
@@ -280,9 +259,9 @@ const Dashboard: React.FC = () => {
             className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
             🧪 Trigger Notification Now
-          </button>
+          </button> */}
 
-          <button
+          {/* <button
             onClick={async () => {
               try {
                 const status = await ReminderService.checkServiceWorkerStatus();
@@ -296,20 +275,8 @@ const Dashboard: React.FC = () => {
             className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
             🔍 Check Service Worker Status
-          </button>
-
-          <button
-            onClick={() => {
-              // Force refresh the countdown timer
-              console.log('🔄 Manually refreshing countdown timer...');
-              // This will trigger a re-render and recalculate the countdown
-              setNextNotificationTime(ReminderService.getTimeUntilNextNotification());
-            }}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
-          >
-            🔄 Refresh Countdown
-          </button>
-
+          </button> */}
+        {/*
           <button
             onClick={async () => {
               try {
@@ -328,29 +295,10 @@ const Dashboard: React.FC = () => {
             className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
             🧪 Test Communication
-          </button>
+          </button> */}
 
-                    <button
-            onClick={async () => {
-              if (user) {
-                console.log('🧪 Testing database insertion manually...');
-                try {
-                  const timestamp = Date.now();
-                  console.log('🧪 Test timestamp:', timestamp);
 
-                  // Use a public test method instead
-                  await ReminderService.testDatabaseInsertion(user.id, timestamp);
-                } catch (error) {
-                  console.error('❌ Test database insertion failed:', error);
-                }
-              }
-            }}
-            className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
-          >
-            🧪 Test Database Insertion
-          </button>
-
-          <button
+          {/* <button
             onClick={async () => {
               console.log('🧹 Cleaning up expired reminders...');
               try {
@@ -364,143 +312,31 @@ const Dashboard: React.FC = () => {
             className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
             🧹 Cleanup Expired Reminders
-          </button>
+          </button> */}
 
-          <button
-            onClick={async () => {
-              try {
-                console.log('🧪 Testing notification sending from service worker...');
-                const success = await ReminderService.testNotificationSending();
-                if (success) {
-                  alert('✅ Service Worker notification test successful!');
-                } else {
-                  alert('❌ Service Worker notification test failed!');
-                }
-              } catch (error) {
-                console.error('Failed to test notification sending:', error);
-                alert('Failed to test notification sending');
-              }
-            }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
-          >
-            🧪 Test Notification Sending
-          </button>
 
-          <button
+          {/* <button
             onClick={() => {
               try {
                 console.log('🔊 Testing notification sound...');
                 // Access the private method through a public interface
                 ReminderService['playWebAudioBeep']();
-                alert('🔊 Notification sound test triggered! Check console for details.');
+                //alert('🔊 Notification sound test triggered! Check console for details.');
               } catch (error) {
                 console.error('Failed to test notification sound:', error);
-                alert('Failed to test notification sound');
+                //alert('Failed to test notification sound');
               }
             }}
             className="bg-teal-600 hover:bg-teal-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
             🔊 Test Notification Sound
-          </button>
+          </button> */}
 
 
 
-
-
-
-
-          <button
-            onClick={() => ReminderService.testNotification()}
-            disabled={notificationPermission !== 'granted'}
-            className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
-          >
-            🧪 Test Service Notification (10s + Sound)
-          </button>
-
-          <button
-            onClick={() => ReminderService.testMessageListener()}
-            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
-          >
-            🔍 Test Message Listener
-          </button>
-
-          <button
-            onClick={() => navigate('/capture/test-reminder-id')}
-            className="bg-pink-600 hover:bg-pink-700 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
-          >
-            📱 Test Photo Capture
-          </button>
         </div>
       </div>
 
-      {/* Active Reminders */}
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Active Reminders</h2>
-        {activeReminders.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">No active reminders</p>
-        ) : (
-          <div className="space-y-3">
-            {activeReminders.map((reminder) => (
-              <div
-                key={reminder.id}
-                className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="font-medium text-gray-900">
-                      Scheduled for {formatDate(reminder.scheduled_at)}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Expires at {formatDate(reminder.expires_at)}
-                    </p>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    reminder.status === 'pending'
-                      ? 'bg-yellow-100 text-yellow-800'
-                      : 'bg-blue-100 text-blue-800'
-                  }`}>
-                    {reminder.status}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Photo Upload Status */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Photo Upload Status</h2>
-        {photoHistory.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">No photos uploaded yet</p>
-        ) : (
-          <div className="space-y-3">
-            {photoHistory.slice(0, 6).map((photo) => (
-              <div key={photo.id} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
-                    <span className="text-green-600 text-sm">✓</span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">Photo uploaded successfully</p>
-                    <p className="text-sm text-gray-600">
-                      Uploaded {formatDate(photo.uploaded_at)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {photoHistory.length > 6 && (
-          <div className="text-center mt-4">
-            <p className="text-sm text-gray-500">
-              {photoHistory.length} photos uploaded total
-            </p>
-          </div>
-        )}
-      </div>
     </div>
   )
 }
