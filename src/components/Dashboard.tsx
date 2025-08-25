@@ -16,6 +16,13 @@ const Dashboard: React.FC = () => {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
   const [nextNotificationTime, setNextNotificationTime] = useState<number | null>(null)
 
+  // Format time from seconds to MM:SS format
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
   useEffect(() => {
     if (!user) return
 
@@ -208,14 +215,14 @@ const Dashboard: React.FC = () => {
                 notificationServiceRunning ? 'text-green-700' : 'text-gray-700'
               }`}>
                 {notificationServiceRunning
-                  ? `Next notification in ${nextNotificationTime ? Math.ceil(nextNotificationTime / 1000) : 30} ${nextNotificationTime ? Math.ceil(nextNotificationTime / 1000) === 1 ? 'second' : 'seconds' : 'seconds'}`
-                  : `Click "Start Notification Service" to begin receiving automatic reminders every ${ReminderService.minMinutesRange}-${ReminderService.maxMinutesRange} seconds for ${ReminderService.durationHours} hours`
+                  ? `Next notification in ${nextNotificationTime ? formatTime(nextNotificationTime / 1000) : '0:30'}`
+                  : `Click "Start Notification Service" to begin receiving automatic reminders every ${ReminderService.minMinutesRange}-${ReminderService.maxMinutesRange} minutes for ${ReminderService.durationHours} hours`
                 }
               </p>
               {notificationServiceRunning && (
                 <p className="text-xs text-green-600 mt-1">
                   Service will continue running in the background every {ReminderService.minMinutesRange} - {ReminderService.maxMinutesRange}
-                  seconds for {ReminderService.durationHours} hours
+                  minutes for {ReminderService.durationHours} hours
                 </p>
               )}
             </div>
