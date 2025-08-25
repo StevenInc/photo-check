@@ -49,7 +49,6 @@ const PhotoCapture: React.FC = () => {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single()
 
       const { data: reminders, error } = await Promise.race([queryPromise, timeoutPromise])
 
@@ -63,12 +62,13 @@ const PhotoCapture: React.FC = () => {
         return
       }
 
-      if (reminders) {
-        console.log('📅 Latest reminder found:', reminders)
+      if (reminders && reminders.length > 0) {
+        const latestReminder = reminders[0]
+        console.log('📅 Latest reminder found:', latestReminder)
 
         // Calculate time remaining based on expires_at
         const now = new Date()
-        const expiresAt = new Date(reminders.expires_at)
+        const expiresAt = new Date(latestReminder.expires_at)
         const timeRemainingMs = expiresAt.getTime() - now.getTime()
 
         if (timeRemainingMs > 0) {
@@ -191,11 +191,11 @@ const PhotoCapture: React.FC = () => {
       return
     }
 
-    // Get the latest reminder and set the timer
-    getLatestReminderAndSetTimer()
-
     // Handle different reminder ID scenarios
     if (reminderId) {
+      // Get the latest reminder and set the timer only when we have a reminder ID
+      getLatestReminderAndSetTimer()
+
       // Activate the reminder (skip for test reminder IDs)
       if (!reminderId.startsWith('test-')) {
         ReminderService.activateReminder(reminderId)
@@ -203,6 +203,8 @@ const PhotoCapture: React.FC = () => {
     } else {
       // No reminder ID provided (background notification) - set a default time
       console.log('📸 No reminder ID provided, using default capture mode for background notification');
+      setTimeLeft(300) // Set default 5 minutes
+      setIsLoadingTimer(false)
     }
 
     // Start camera
