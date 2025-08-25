@@ -9,6 +9,8 @@ export class ReminderService {
   private static serviceWorkerRegistration: ServiceWorkerRegistration | null = null
   private static audioContext: AudioContext | null = null
   private static messageListenerSetUp = false
+  public static minMinutesRange = 20
+  public static maxMinutesRange = 40
 
 
 
@@ -260,14 +262,11 @@ export class ReminderService {
       return timeUntil;
     }
 
-    // Fallback: if no next notification time available, estimate based on last notification
-    if (this.lastNotificationTime === 0) {
-      return 45 * 1000; // 45 seconds (average of 30-60 second range)
-    }
-
     // Calculate time since last notification and estimate next one
     const timeSinceLast = Date.now() - this.lastNotificationTime;
-    const averageInterval = 45 * 1000; // 45 seconds average (30-60 second range)
+
+    const averageInterval = Math.floor(Math.random() * (maxMinutesRange - minMinutesRange + 1)) + minMinutesRange
+
     const timeUntilNext = averageInterval - timeSinceLast;
 
     // If we're past due, return 0 (notification should appear soon)

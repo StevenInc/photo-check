@@ -5,6 +5,7 @@ import { ReminderService } from '../services/reminderService'
 import { StorageTest } from '../utils/storageTest'
 import type { Reminder, Photo } from '../lib/supabase'
 
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
@@ -208,12 +209,12 @@ const Dashboard: React.FC = () => {
               }`}>
                 {notificationServiceRunning
                   ? `Next notification in ${nextNotificationTime ? Math.ceil(nextNotificationTime / 1000) : 30} ${nextNotificationTime ? Math.ceil(nextNotificationTime / 1000) === 1 ? 'second' : 'seconds' : 'seconds'}`
-                  : 'Click "Start Notification Service" to begin receiving automatic reminders every 30-60 seconds for 1 hour'
+                  : `Click "Start Notification Service" to begin receiving automatic reminders every ${ReminderService.minMinutesRange}-${ReminderService.maxMinutesRange} seconds for 1 hour`
                 }
               </p>
               {notificationServiceRunning && (
                 <p className="text-xs text-green-600 mt-1">
-                  Service will continue running in the background every 30-60 seconds for 1 hour
+                  Service will continue running in the background every {ReminderService.minMinutesRange} - {ReminderService.maxMinutesRange} seconds for 1 hour
                 </p>
               )}
             </div>
@@ -226,28 +227,11 @@ const Dashboard: React.FC = () => {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <button
-            onClick={scheduleRandomReminder}
-            disabled={isScheduling || notificationPermission !== 'granted'}
-            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors flex items-center justify-center"
-          >
-            {isScheduling ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                Scheduling...
-              </>
-            ) : (
-              <>
-                🎲 Schedule Random Reminder
-              </>
-            )}
-          </button>
-
-          <button
             onClick={startNotificationService}
             disabled={notificationPermission !== 'granted'}
             className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
-            🚀 Start/Restart Notification Service (Every 30-60 sec for 1 hour)
+            🚀 Start/Restart Notification Service (Every {ReminderService.minMinutesRange}-{ReminderService.maxMinutesRange} min for 1 hour)
           </button>
 
           <button
