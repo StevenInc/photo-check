@@ -1,8 +1,7 @@
-const CACHE_NAME = 'photo-check-v2'; // Increment version to force update
+const CACHE_NAME = 'diaper-check-v3'; // Increment version to force update
 const urlsToCache = [
   '/',
-  '/static/js/bundle.js',
-  '/static/css/main.css',
+  '/index.html',
   '/manifest.json',
   '/camera-icon.svg'
 ];
@@ -53,11 +52,24 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Opened cache');
-        return cache.addAll(urlsToCache);
+        // Cache resources individually to handle failures gracefully
+        return Promise.allSettled(
+          urlsToCache.map(url =>
+            cache.add(url).catch(error => {
+              console.warn(`Failed to cache ${url}:`, error);
+              return null; // Continue with other resources
+            })
+          )
+        );
       })
       .then(() => {
         // Force the service worker to activate immediately
         console.log('🔔 Service Worker: Installation complete, forcing activation...');
+        return self.skipWaiting();
+      })
+      .catch(error => {
+        console.error('Service Worker installation failed:', error);
+        // Still try to activate even if caching fails
         return self.skipWaiting();
       })
   );
@@ -65,11 +77,23 @@ self.addEventListener('install', (event) => {
 
 // Fetch event - serve from cache when offline
 self.addEventListener('fetch', (event) => {
+  // Skip caching for non-GET requests and non-HTTP requests
+  if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
         // Return cached version or fetch from network
-        return response || fetch(event.request);
+        return response || fetch(event.request).catch(error => {
+          console.warn('Fetch failed for:', event.request.url, error);
+          // Return a fallback response if both cache and network fail
+          return new Response('Offline content not available', {
+            status: 503,
+            statusText: 'Service Unavailable'
+          });
+        });
       })
   );
 });

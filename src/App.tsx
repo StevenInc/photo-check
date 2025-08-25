@@ -1,12 +1,90 @@
-import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import React, { useEffect, useState } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Auth from './components/Auth'
 import Dashboard from './components/Dashboard'
 import PhotoCapture from './components/PhotoCapture'
 import TestPhotoCapture from './components/TestPhotoCapture'
 import NotificationResponse from './components/NotificationResponse'
+import { supabase } from './lib/supabase'
 import './index.css'
+
+// Auth callback component for email confirmation
+const AuthCallback: React.FC = () => {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    const handleAuthCallback = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession()
+
+        if (error) {
+          console.error('Auth callback error:', error)
+          setStatus('error')
+          setMessage(error.message)
+          return
+        }
+
+        if (data.session) {
+          setStatus('success')
+          setMessage('Email confirmed successfully! Redirecting to dashboard...')
+          setTimeout(() => navigate('/'), 2000)
+        } else {
+          setStatus('error')
+          setMessage('No session found. Please try signing in again.')
+        }
+      } catch (error) {
+        console.error('Auth callback error:', error)
+        setStatus('error')
+        setMessage('An unexpected error occurred.')
+      }
+    }
+
+    handleAuthCallback()
+  }, [navigate])
+
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Confirming your email...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'success') {
+    return (
+      <div className="min-h-screen bg-green-50 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="text-8xl mb-6">✅</div>
+          <h1 className="text-3xl font-bold text-green-900 mb-4">Email Confirmed!</h1>
+          <p className="text-green-700 mb-8 text-lg">{message}</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-red-50 flex items-center justify-center p-4">
+      <div className="text-center">
+        <div className="text-8xl mb-6">❌</div>
+        <h1 className="text-3xl font-bold text-red-900 mb-4">Email Confirmation Failed</h1>
+        <p className="text-red-700 mb-8 text-lg">{message}</p>
+        <button
+          onClick={() => navigate('/auth')}
+          className="bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+        >
+          Back to Sign In
+        </button>
+      </div>
+    </div>
+  )
+}
 
 // Protected route component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -76,6 +154,7 @@ const AppContent: React.FC = () => {
     <Router>
       <Routes>
         <Route path="/auth" element={user ? <Navigate to="/" replace /> : <Auth />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/notification/:reminderId" element={
           <ProtectedRoute>
             <NotificationResponse />
