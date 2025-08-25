@@ -209,12 +209,13 @@ const Dashboard: React.FC = () => {
               }`}>
                 {notificationServiceRunning
                   ? `Next notification in ${nextNotificationTime ? Math.ceil(nextNotificationTime / 1000) : 30} ${nextNotificationTime ? Math.ceil(nextNotificationTime / 1000) === 1 ? 'second' : 'seconds' : 'seconds'}`
-                  : `Click "Start Notification Service" to begin receiving automatic reminders every ${ReminderService.minMinutesRange}-${ReminderService.maxMinutesRange} seconds for 1 hour`
+                  : `Click "Start Notification Service" to begin receiving automatic reminders every ${ReminderService.minMinutesRange}-${ReminderService.maxMinutesRange} seconds for ${ReminderService.durationHours} hours`
                 }
               </p>
               {notificationServiceRunning && (
                 <p className="text-xs text-green-600 mt-1">
-                  Service will continue running in the background every {ReminderService.minMinutesRange} - {ReminderService.maxMinutesRange} seconds for 1 hour
+                  Service will continue running in the background every {ReminderService.minMinutesRange} - {ReminderService.maxMinutesRange}
+                  seconds for {ReminderService.durationHours} hours
                 </p>
               )}
             </div>
@@ -231,7 +232,7 @@ const Dashboard: React.FC = () => {
             disabled={notificationPermission !== 'granted'}
             className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-bold py-4 px-6 rounded-lg text-lg transition-colors"
           >
-            🚀 Start/Restart Notification Service (Every {ReminderService.minMinutesRange}-{ReminderService.maxMinutesRange} min for 1 hour)
+            🚀 Start/Restart Notification Service (Every {ReminderService.minMinutesRange}-{ReminderService.maxMinutesRange} min for {ReminderService.durationHours} hour)
           </button>
 
           <button

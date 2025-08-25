@@ -11,6 +11,7 @@ export class ReminderService {
   private static messageListenerSetUp = false
   public static minMinutesRange = 20
   public static maxMinutesRange = 40
+  public static durationHours = 5
 
 
 
@@ -191,15 +192,16 @@ export class ReminderService {
         registration.active.postMessage({
           type: 'START_NOTIFICATION_SERVICE',
           userId: userId,
-          intervalMinutes: 0, // 0 means use random 6-30 second intervals (DEBUG MODE)
-          durationHours: 1 // Run for 1 hour for debugging
+          minMinutesRange: ReminderService.minMinutesRange,
+          maxMinutesRange: ReminderService.maxMinutesRange,
+          durationHours: 1 // Run for 1 hour
         });
-        console.log('✅ Message sent to Service Worker to start background notifications for 1 hour with 6-30 second intervals (DEBUG MODE)');
+        console.log('✅ Message sent to Service Worker to start background notifications for 5 hour with 20-40 min intervals');
       }
 
         // Log the service setup
     console.log('✅ Notification service started using Service Worker')
-    console.log('🔍 Will run for 4 hours with 3-minute intervals')
+    console.log('🔍 Will run for 5 hour with 20-40 minute intervals')
   }
 
   // Stop the notification service
@@ -265,7 +267,7 @@ export class ReminderService {
     // Calculate time since last notification and estimate next one
     const timeSinceLast = Date.now() - this.lastNotificationTime;
 
-    const averageInterval = Math.floor(Math.random() * (maxMinutesRange - minMinutesRange + 1)) + minMinutesRange
+    const averageInterval = Math.floor(Math.random() * (ReminderService.maxMinutesRange - ReminderService.minMinutesRange + 1)) + ReminderService.minMinutesRange
 
     const timeUntilNext = averageInterval - timeSinceLast;
 

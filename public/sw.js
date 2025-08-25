@@ -112,7 +112,8 @@ self.addEventListener('message', (event) => {
       if (event.data?.type === 'START_NOTIFICATION_SERVICE') {
     console.log('🚀 Service Worker: Processing START_NOTIFICATION_SERVICE message');
     console.log('🚀 Service Worker: User ID:', event.data.userId);
-    console.log('🚀 Service Worker: Interval minutes:', event.data.intervalMinutes);
+    console.log('🚀 Service Worker: Min minutes range:', event.data.minMinutesRange);
+    console.log('🚀 Service Worker: Max minutes range:', event.data.maxMinutesRange);
     console.log('🚀 Service Worker: Duration hours:', event.data.durationHours);
 
     // Check if service is already running for this user
@@ -121,7 +122,7 @@ self.addEventListener('message', (event) => {
       stopBackgroundNotificationService(event.data.userId);
     }
 
-    startBackgroundNotificationService(event.data.userId, event.data.intervalMinutes, event.data.durationHours);
+    startBackgroundNotificationService(event.data.userId, event.data.minMinutesRange, event.data.maxMinutesRange, event.data.durationHours);
     } else if (event.data?.type === 'STOP_NOTIFICATION_SERVICE') {
       console.log('⏹️ Service Worker: Processing STOP_NOTIFICATION_SERVICE message');
       console.log('⏹️ Service Worker: User ID:', event.data.userId);
@@ -172,7 +173,7 @@ self.addEventListener('message', (event) => {
 });
 
 // Start background notification service
-function startBackgroundNotificationService(userId, intervalMinutes = 3, durationHours = 4) {
+function startBackgroundNotificationService(userId, minMinutesRange = 20, maxMinutesRange = 40, durationHours = 4) {
   console.log('🔔 Service Worker: FUNCTION CALLED - startBackgroundNotificationService');
   console.log('🔔 Service Worker: Starting background notification service for user:', userId);
   console.log('🔔 Service Worker: Duration set to:', durationHours, 'hours with random 2-4 min intervals');
@@ -220,16 +221,12 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
 
     // Use the interval from main app if provided, otherwise use random 2-4 minutes
     let nextIntervalMs;
-    if (intervalMinutes && intervalMinutes > 0) {
-      // Use the main app's interval setting
-      nextIntervalMs = intervalMinutes * 60 * 1000;
-      console.log('🔔 Service Worker: Using main app interval:', intervalMinutes, 'minutes (', nextIntervalMs, 'ms)');
-    } else {
-      // Generate random interval range between 30-60 seconds for debugging
-      const randomSeconds = Math.random() * 30 + 30; // 30 to 60 seconds
-      nextIntervalMs = randomSeconds * 1000;
-      console.log('🔔 Service Worker: Using random interval:', randomSeconds.toFixed(1), 'seconds (', nextIntervalMs, 'ms) - DEBUG MODE: 30-60 sec range');
-    }
+
+    // Generate random interval range between minMinutesRange-maxMinutesRange seconds
+    const randomSeconds = Math.floor(Math.random() * (maxMinutesRange - minMinutesRange + 1)) + minMinutesRange;
+    nextIntervalMs = randomSeconds * 1000;
+    console.log('🔔 Service Worker: Using random interval:', randomSeconds, 'seconds (', nextIntervalMs, 'ms)');
+
 
     // Schedule the notification
     console.log('⏰ Service Worker: Scheduling notification for user:', userId, 'in', (nextIntervalMs / 1000).toFixed(1), 'seconds');
@@ -268,7 +265,9 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
             type: 'NEXT_NOTIFICATION_TIME',
             userId: userId,
             nextNotificationTime: nextNotificationTime,
-            intervalSeconds: randomSeconds
+            minMinutesRange: minMinutesRange,
+            maxMinutesRange: maxMinutesRange,
+            durationHours: durationHours
           });
           console.log('📤 Service Worker: Sent NEXT_NOTIFICATION_TIME message to main app:', new Date(nextNotificationTime).toLocaleString());
         } catch (error) {
@@ -276,7 +275,7 @@ function startBackgroundNotificationService(userId, intervalMinutes = 3, duratio
         }
       }
     });
-  };
+  }; // Close the scheduleNextNotification function
 
   // Start the recursive scheduling loop
   console.log('🔄 Service Worker: About to start recursive scheduling loop...');
