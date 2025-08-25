@@ -222,14 +222,14 @@ function startBackgroundNotificationService(userId, minMinutesRange = 20, maxMin
     // Use the interval from main app if provided, otherwise use random 2-4 minutes
     let nextIntervalMs;
 
-    // Generate random interval range between minMinutesRange-maxMinutesRange seconds
-    const randomSeconds = Math.floor(Math.random() * (maxMinutesRange - minMinutesRange + 1)) + minMinutesRange;
-    nextIntervalMs = randomSeconds * 1000;
-    console.log('🔔 Service Worker: Using random interval:', randomSeconds, 'seconds (', nextIntervalMs, 'ms)');
+    // Generate random interval range between minMinutesRange-maxMinutesRange minutes
+    const randomMinutes = Math.floor(Math.random() * (maxMinutesRange - minMinutesRange + 1)) + minMinutesRange;
+    nextIntervalMs = randomMinutes * 60 * 1000; // Convert minutes to milliseconds
+    console.log('🔔 Service Worker: Using random interval:', randomMinutes, 'minutes (', nextIntervalMs, 'ms)');
 
 
     // Schedule the notification
-    console.log('⏰ Service Worker: Scheduling notification for user:', userId, 'in', (nextIntervalMs / 1000).toFixed(1), 'seconds');
+    console.log('⏰ Service Worker: Scheduling notification for user:', userId, 'in', (nextIntervalMs / 60000).toFixed(1), 'minutes');
     console.log('⏰ Service Worker: Setting timeout for', nextIntervalMs, 'milliseconds...');
 
         const timeoutId = setTimeout(() => {
@@ -285,7 +285,7 @@ function startBackgroundNotificationService(userId, minMinutesRange = 20, maxMin
   } catch (error) {
     console.error('❌❌❌ Service Worker: Failed to start recursive scheduling loop:', error);
   }
-  console.log('✅ Service Worker: Background notification service started with 6-30 second intervals for 1 hour (DEBUG MODE)');
+  console.log('✅ Service Worker: Background notification service started with 20-40 minute intervals for', durationHours, 'hours');
 }
 
 // Stop background notification service
